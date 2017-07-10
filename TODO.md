@@ -19,3 +19,4 @@
 7. Compare gas required to create a new contracts VS using a single contract,
   see http://solidity.readthedocs.io/en/develop/using-the-compiler.html
 8. Handle issuehunter fees
+9. Add missing documentation
