@@ -33,7 +33,7 @@ contract IssueHunter {
     }
 
     /// Add fund to this contract
-    function () payable {
+    function fund() payable {
         funds[msg.sender] += msg.value;
         total += msg.value;
         Fund(issueId, msg.sender, now, msg.value);

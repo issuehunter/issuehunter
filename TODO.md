@@ -8,7 +8,7 @@
   also (7)
 √. Use `transfer()` instead of `send()`, see
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#be-aware-of-the-tradeoffs-between-send-transfer-and-callvalue
-3. Define `fund()` instead of using the _fallback function_, see
+√. Define `fund()` instead of using the _fallback function_, see
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#keep-fallback-functions-simple
 4. Explicitly label the visibility of functions and state variables, see
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#explicitly-mark-visibility-in-functions-and-state-variables
