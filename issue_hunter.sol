@@ -1,4 +1,5 @@
 pragma solidity ^0.4.0;
+
 contract IssueHunter {
 
     address issueManager;
@@ -83,7 +84,7 @@ contract IssueHunter {
         if (now > executePeriodExpiresAt) throw;
 
         executed = true;
-        if (!msg.sender.send(total)) throw;
+        msg.sender.transfer(total);
         WithdrawFunds(issueId, msg.sender);
     }
 
@@ -103,7 +104,7 @@ contract IssueHunter {
 
         funds[funder] = 0;
         total -= amount;
-        if (!funder.send(amount)) throw;
+        funder.transfer(amount);
         return amount;
     }
 }

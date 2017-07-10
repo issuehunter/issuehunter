@@ -6,7 +6,7 @@
   able to find any document that states that the cost of a lookup is
   proportional to a map's size, that makes sense in terms of complexity, see
   also (7)
-2. Use `transfer()` instead of `send()`, see
+√. Use `transfer()` instead of `send()`, see
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#be-aware-of-the-tradeoffs-between-send-transfer-and-callvalue
 3. Define `fund()` instead of using the _fallback function_, see
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#keep-fallback-functions-simple
