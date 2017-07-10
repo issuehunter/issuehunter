@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.11;
 
 contract IssueHunter {
 
@@ -41,7 +41,7 @@ contract IssueHunter {
 
     function submitResolution(string commitSHA) {
         // fail if sender already submitted a resolution
-        if (bytes(resolutions[msg.sender]).length != 0) throw;
+        require(bytes(resolutions[msg.sender]).length == 0);
 
         resolutions[msg.sender] = commitSHA;
         Resolution(issueId, msg.sender, commitSHA);
@@ -49,11 +49,11 @@ contract IssueHunter {
 
     function verifyResolution(address _resolutor) {
         // only issue manager is allowed to call this function
-        if (msg.sender != issueManager) throw;
+        require(msg.sender == issueManager);
         // fail if resolutor didn't submit any resolution yet
-        if (bytes(resolutions[_resolutor]).length == 0) throw;
+        require(bytes(resolutions[_resolutor]).length != 0);
         // fail if a resolution has been already verified
-        if (resolutor != 0) throw;
+        require(resolutor == 0);
 
         resolutor = _resolutor;
         rewardPeriodExpiresAt = now + rewardPeriod;
@@ -62,9 +62,9 @@ contract IssueHunter {
 
     function rollbackFunds() {
         // fail if there's no verified resolution
-        if (resolutor == 0) throw;
+        require(resolutor != 0);
         // fail if reward period has expired
-        if (now > rewardPeriodExpiresAt) throw;
+        require(now <= rewardPeriodExpiresAt);
 
         uint amount = _rollbackFunds(msg.sender);
         // TODO add negative reputation to the MAIN contract
@@ -73,15 +73,15 @@ contract IssueHunter {
 
     function withdrawFunds() {
         // fail if all funds have been rolled back
-        if (total == 0) throw;
+        require(total > 0);
         // funds can be withdrawed only once
-        if (executed) throw;
+        require(!executed);
         // only resolutor is allowed to withdraw funds
-        if (msg.sender != resolutor) throw;
+        require(msg.sender == resolutor);
         // withdraw can happen only within the execution period, that is after
         // reward period has expired and before execution period expires
-        if (now <= rewardPeriodExpiresAt) throw;
-        if (now > executePeriodExpiresAt) throw;
+        require(now > rewardPeriodExpiresAt);
+        require(now <= executePeriodExpiresAt);
 
         executed = true;
         msg.sender.transfer(total);
@@ -90,9 +90,9 @@ contract IssueHunter {
 
     function withdrawSpareFunds()  {
         // funders can't withdraw spare funds if contract has been executed
-        if (executed) throw;
+        require(!executed);
         // funders can withdraw spare funds only after execute period has expired
-        if (now < executePeriodExpiresAt) throw;
+        require(now >= executePeriodExpiresAt);
 
         uint amount = _rollbackFunds(msg.sender);
         WithdrawSpareFunds(issueId, msg.sender, amount);
@@ -100,7 +100,7 @@ contract IssueHunter {
 
     function _rollbackFunds(address funder) internal returns (uint amount) {
         amount = funds[funder];
-        if (amount == 0) throw;
+        require(amount > 0);
 
         funds[funder] = 0;
         total -= amount;

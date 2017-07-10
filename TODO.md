@@ -12,7 +12,7 @@
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#keep-fallback-functions-simple
 4. Explicitly label the visibility of functions and state variables, see
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#explicitly-mark-visibility-in-functions-and-state-variables
-5. Use `require()` instead of `if (...) throw`, requires solidity >= 0.4.10, see
+√. Use `require()` instead of `if (...) throw`, requires solidity >= 0.4.10, see
   https://github.com/ConsenSys/smart-contract-best-practices/blob/master/README.md#use-assert-and-require-properly
 6. Register contract's name, see
   https://ethereum.gitbooks.io/frontier-guide/content/contract_namereg.html
