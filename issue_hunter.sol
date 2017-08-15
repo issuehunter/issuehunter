@@ -3,10 +3,10 @@ pragma solidity ^0.4.11;
 contract IssueHunter {
 
     address issueManager;
-    string public issueId;
+    bytes32 public issueId;
     // default funds values are zeroes
     mapping(address => uint) public funds;
-    mapping(address => string) public resolutions;
+    mapping(address => bytes32) public resolutions;
     uint public total;
     // time between resolution has been verified and funders can't rollback their funds anymore
     uint rewardPeriod;
@@ -17,15 +17,15 @@ contract IssueHunter {
     uint public executePeriodExpiresAt;
     address public resolutor;
 
-    event Fund(string indexed issueId, address indexed funder, uint indexed timestamp, uint amount);
-    event Resolution(string indexed issueId, address indexed resolutor, string indexed commitSHA);
-    event RollbackFunds(string indexed issueId, address indexed funder, uint amount);
-    event WithdrawFunds(string indexed issueId, address indexed resolutor);
-    event WithdrawSpareFunds(string indexed issueId, address indexed funder, uint amount);
+    event Fund(bytes32 indexed issueId, address indexed funder, uint indexed timestamp, uint amount);
+    event Resolution(bytes32 indexed issueId, address indexed resolutor, bytes32 indexed commitSHA);
+    event RollbackFunds(bytes32 indexed issueId, address indexed funder, uint amount);
+    event WithdrawFunds(bytes32 indexed issueId, address indexed resolutor);
+    event WithdrawSpareFunds(bytes32 indexed issueId, address indexed funder, uint amount);
 
     /// Create a new IssueHunter contract for $(_issueId) as issue ID and the
     /// message sender as issue manager.
-    function IssueHunter(string _issueId, uint _rewardPeriod, uint _executePeriod) {
+    function IssueHunter(bytes32 _issueId, uint _rewardPeriod, uint _executePeriod) {
         issueManager = msg.sender;
         issueId = _issueId;
         rewardPeriod = _rewardPeriod;
@@ -39,9 +39,9 @@ contract IssueHunter {
         Fund(issueId, msg.sender, now, msg.value);
     }
 
-    function submitResolution(string commitSHA) {
+    function submitResolution(bytes32 commitSHA) {
         // fail if sender already submitted a resolution
-        require(bytes(resolutions[msg.sender]).length == 0);
+        require(resolutions[msg.sender].length == 0);
 
         resolutions[msg.sender] = commitSHA;
         Resolution(issueId, msg.sender, commitSHA);
@@ -51,7 +51,7 @@ contract IssueHunter {
         // only issue manager is allowed to call this function
         require(msg.sender == issueManager);
         // fail if resolutor didn't submit any resolution yet
-        require(bytes(resolutions[_resolutor]).length != 0);
+        require(resolutions[_resolutor].length != 0);
         // fail if a resolution has been already verified
         require(resolutor == 0);
 
