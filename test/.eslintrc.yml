@@ -1,0 +1,8 @@
+env:
+  mocha: true
+
+globals:
+  assert: true
+  artifacts: true
+  web3: true
+  contract: true
