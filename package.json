@@ -20,7 +20,7 @@
     }
   ],
   "scripts": {
-    "lint": "eslint --ext .js test || solium --dir contracts || solium --dir test",
+    "lint": "eslint --ext .js test && solium --dir contracts && solium --dir test",
     "test": "truffle test",
     "testrpc": "testrpc"
   },
