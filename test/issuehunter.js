@@ -96,6 +96,17 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
+  const verifyResolution = function (issueId, resolutor, account) {
+    return Issuehunter.deployed().then(function (instance) {
+      return instance.verifyResolution(issueId, resolutor, { from: account })
+    }).then(function (result) {
+      assert(findEvent(result, 'ResolutionVerified'), 'A new `ResolutionVerified` event has been triggered')
+      return Issuehunter.deployed()
+    }).then(function (instance) {
+      return instance.campaigns.call(issueId)
+    })
+  }
+
   it('should make the first account the issue manager', function () {
     return Issuehunter.deployed().then(function (instance) {
       return instance.issueManager.call()
@@ -254,17 +265,6 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('verifyResolution', function () {
-    const verifyResolution = function (issueId, resolutor, account) {
-      return Issuehunter.deployed().then(function (instance) {
-        return instance.verifyResolution(issueId, resolutor, { from: account })
-      }).then(function (result) {
-        assert(findEvent(result, 'ResolutionVerified'), 'A new `ResolutionVerified` event has been triggered')
-        return Issuehunter.deployed()
-      }).then(function (instance) {
-        return instance.campaigns.call(issueId)
-      })
-    }
-
     it('should set the selected address as the issue resolutor', function () {
       const issueId = 'new-campaign-6'
       const commitSHA = 'sha'
