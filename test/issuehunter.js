@@ -107,6 +107,17 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
+  const rollbackFunds = function (issueId, account) {
+    return Issuehunter.deployed().then(function (instance) {
+      return instance.rollbackFunds(issueId, { from: account })
+    }).then(function (result) {
+      assert(findEvent(result, 'RollbackFunds'), 'A new `RollbackFunds` event has been triggered')
+      return Issuehunter.deployed()
+    }).then(function (instance) {
+      return instance.campaigns.call(issueId)
+    })
+  }
+
   it('should make the first account the issue manager', function () {
     return Issuehunter.deployed().then(function (instance) {
       return instance.issueManager.call()
@@ -341,6 +352,163 @@ contract('Issuehunter', function (accounts) {
       it('should fail to verify a proposed resolution', function () {
         const finalState = Issuehunter.deployed().then(function (instance) {
           return instance.verifyResolution(issueId, resolutor, { from: issueManager })
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+  })
+
+  describe('rollbackFunds', function () {
+    it('should remove funding from the selected campaign', function () {
+      const issueId = 'new-campaign-10'
+      const commitSHA = 'sha'
+      const funder1 = accounts[1]
+      const funder2 = accounts[2]
+      const txValue1 = 10
+      const txValue2 = 12
+      const resolutor = accounts[1]
+
+      return newCampaign(issueId, accounts[1]).then(function () {
+        return fundCampaign(issueId, txValue1, funder1)
+      }).then(function () {
+        return fundCampaign(issueId, txValue2, funder2)
+      }).then(function () {
+        return submitResolution(issueId, commitSHA, resolutor)
+      }).then(function () {
+        return verifyResolution(issueId, resolutor, issueManager)
+      }).then(function () {
+        return rollbackFunds(issueId, funder1)
+      }).then(function (campaign) {
+        assert.equal(campaign[1].toNumber(), 12, 'Campaign\'s total amount should be updated')
+        return Issuehunter.deployed()
+      }).then(function (instance) {
+        return instance.campaignFunds.call(issueId, funder1)
+      }).then(function (amount) {
+        assert.equal(amount.toNumber(), 0, 'Campaign\'s funder amount should be updated')
+      })
+    })
+
+    context('a resolution hasn\'t been verified yet', function () {
+      const issueId = 'new-campaign-11'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('should fail to rollback funds', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return rollbackFunds(issueId, funder)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaignFunds.call(issueId, funder)
+        }).then(function (amount) {
+          assert.equal(amount.toNumber(), txValue, 'Campaign\'s funder is unmodified')
+        })
+      })
+    })
+
+    context('right before the reward period end', function () {
+      const issueId = 'new-campaign-12'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('remove funding from the selected campaign', function () {
+        return newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, issueManager)
+        }).then(function () {
+          return increaseTime(60 * 60 * 24)
+        }).then(function () {
+          return rollbackFunds(issueId, funder)
+        }).then(function (campaign) {
+          assert.equal(campaign[1].toNumber(), 0, 'Campaign\'s total amount should be updated')
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaignFunds.call(issueId, funder)
+        }).then(function (amount) {
+          assert.equal(amount.toNumber(), 0, 'Campaign\'s funder amount should be updated')
+        })
+      })
+    })
+
+    context('past the reward period', function () {
+      const issueId = 'new-campaign-13'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('should fail to rollback funds', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, issueManager)
+        }).then(function () {
+          return increaseTime(60 * 60 * 24 + 1)
+        }).then(function () {
+          return rollbackFunds(issueId, funder)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaignFunds.call(issueId, funder)
+        }).then(function (amount) {
+          assert.equal(amount.toNumber(), txValue, 'Campaign\'s funder is unmodified')
+        })
+      })
+    })
+
+    context('an address that\'s not associated to any funder', function () {
+      const issueId = 'new-campaign-14'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('should fail to rollback funds', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, issueManager)
+        }).then(function () {
+          return rollbackFunds(issueId, accounts[2])
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaigns.call(issueId)
+        }).then(function (campaign) {
+          assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
+        })
+      })
+    })
+
+    context('a campaign that doesn\'t exist', function () {
+      const issueId = 'invalid'
+      const funder = accounts[1]
+
+      it('should fail to rollback funds', function () {
+        const finalState = Issuehunter.deployed().then(function (instance) {
+          return instance.rollbackFunds(issueId, { from: funder })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
