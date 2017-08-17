@@ -74,6 +74,17 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
+  const fundCampaign = function (issueId, value, account) {
+    return Issuehunter.deployed().then(function (instance) {
+      return instance.fund(issueId, { from: account, value: value })
+    }).then(function (result) {
+      assert(findEvent(result, 'CampaignFunded'), 'A new `CampaignFunded` event has been triggered')
+      return Issuehunter.deployed()
+    }).then(function (instance) {
+      return instance.campaigns.call(issueId)
+    })
+  }
+
   const submitResolution = function (issueId, commitSHA, account) {
     return Issuehunter.deployed().then(function (instance) {
       return instance.submitResolution(issueId, commitSHA, { from: account })
@@ -141,6 +152,7 @@ contract('Issuehunter', function (accounts) {
   describe('fund', function () {
     it('should add funds to the campaign', function () {
       const issueId = 'new-campaign-3'
+      const funder = accounts[1]
       const txValue1 = 12
       const txValue2 = 24
 
@@ -150,36 +162,25 @@ contract('Issuehunter', function (accounts) {
         return campaign[1].toNumber()
       })
 
-      const fundCampaign = function (value) {
-        return Issuehunter.deployed().then(function (instance) {
-          return instance.fund(issueId, { from: accounts[1], value: value })
-        }).then(function (result) {
-          assert(findEvent(result, 'CampaignFunded'), 'A new `CampaignFunded` event has been triggered')
-          return Issuehunter.deployed()
-        }).then(function (instance) {
-          return instance.campaigns.call(issueId)
-        })
-      }
-
       return newCampaign(issueId, accounts[1]).then(function () {
         return initialTotal
       }).then(function () {
-        // Test a `fund` transaction from account 2
-        return Promise.all([initialTotal, fundCampaign(txValue1)])
+        // Test a `fund` transaction from `funder`
+        return Promise.all([initialTotal, fundCampaign(issueId, txValue1, funder)])
       }).then(function ([initialTotalValue, campaign]) {
         assert.equal(campaign[1].toNumber(), initialTotalValue + txValue1, 'Campaign\'s total amount should be updated')
         return Issuehunter.deployed()
       }).then(function (instance) {
-        return instance.campaignFunds.call(issueId, accounts[1])
+        return instance.campaignFunds.call(issueId, funder)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue1, 'Campaign\'s funder amount should be updated')
         // Test a second `fund` transaction from the same account
-        return Promise.all([initialTotal, fundCampaign(txValue2)])
+        return Promise.all([initialTotal, fundCampaign(issueId, txValue2, funder)])
       }).then(function ([initialTotalValue, campaign]) {
         assert.equal(campaign[1].toNumber(), initialTotalValue + txValue1 + txValue2, 'Campaign\'s total amount should be updated')
         return Issuehunter.deployed()
       }).then(function (instance) {
-        return instance.campaignFunds.call(issueId, accounts[1])
+        return instance.campaignFunds.call(issueId, funder)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue1 + txValue2, 'Campaign\'s funder amount should be updated')
       })
