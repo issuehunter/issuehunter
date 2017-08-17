@@ -234,10 +234,10 @@ contract Issuehunter {
     // the 0x0000000 address?
     // What if instead of "archive", "createCampaign" just does this?
 
-    // Campaign bakers have one last chance to withdraw their funds under certain
+    // Campaign backers have one last chance to withdraw their funds under certain
     // conditions.
     //
-    // Any baker of the campaign is able to withdraw his/her fund:
+    // Any backer of the campaign is able to withdraw his/her fund:
     //
     // * if a resolutor doesn't withdraw a campaign reward before
     //   `executePeriodExpiresAt` has passed
