@@ -127,6 +127,17 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
+  const withdrawFunds = function (issueId, account) {
+    return Issuehunter.deployed().then(function (instance) {
+      return instance.withdrawFunds(issueId, { from: account })
+    }).then(function (result) {
+      assert(findEvent(result, 'WithdrawFunds'), 'A new `WithdrawFunds` event has been triggered')
+      return Issuehunter.deployed()
+    }).then(function (instance) {
+      return instance.campaigns.call(issueId)
+    })
+  }
+
   it('should make the first account the issue manager', function () {
     return Issuehunter.deployed().then(function (instance) {
       return instance.issueManager.call()
@@ -518,6 +529,229 @@ contract('Issuehunter', function (accounts) {
       it('should fail to rollback funds', function () {
         const finalState = Issuehunter.deployed().then(function (instance) {
           return instance.rollbackFunds(issueId, { from: funder })
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+  })
+
+  describe('withdrawFunds', function () {
+    it('should withdraw the whole campaing\'s amount as a reward', function () {
+      const issueId = 'new-campaign-15'
+      const commitSHA = 'sha'
+      const funder1 = accounts[1]
+      const funder2 = accounts[2]
+      const txValue1 = 10
+      const txValue2 = 12
+      const resolutor = accounts[3]
+
+      const initialResolutorBalance = addressBalance(resolutor)
+
+      return newCampaign(issueId, accounts[1]).then(function () {
+        return fundCampaign(issueId, txValue1, funder1)
+      }).then(function () {
+        return fundCampaign(issueId, txValue2, funder2)
+      }).then(function () {
+        return submitResolution(issueId, commitSHA, resolutor)
+      }).then(function () {
+        return verifyResolution(issueId, resolutor, issueManager)
+      }).then(function () {
+        // One second past the pre-reward period
+        return increaseTime(60 * 60 * 24 + 1)
+      }).then(function () {
+        return withdrawFunds(issueId, resolutor)
+      }).then(function (campaign) {
+        assert.equal(campaign[0], true, 'Campaign has been executed')
+        // Campaign's total amount will keep track of the total amount that has
+        // been paid by the campaign
+        assert.equal(campaign[1].toNumber(), txValue1 + txValue2, 'Campaign\'s total amount is unmodified')
+        return Issuehunter.deployed()
+      }).then(function (instance) {
+        return instance.campaignFunds.call(issueId, funder1)
+      }).then(function (amount) {
+        assert.equal(amount.toNumber(), txValue1, 'Campaign\'s funder amount is unmodified')
+        return Issuehunter.deployed()
+      }).then(function (instance) {
+        return instance.campaignFunds.call(issueId, funder2)
+      }).then(function (amount) {
+        assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
+        return Promise.all([initialResolutorBalance, addressBalance(resolutor)])
+      }).then(function ([initialAmount, currentAmount]) {
+        // TODO: find a better way to check for a user's account balance delta
+        // This is a workaround and it won't work under all conditions. It
+        // partially works because transactions are in wei, but gas are some
+        // orders of magnitude more expensive
+        assert.equal(currentAmount.mod(10000) - initialAmount.mod(10000), txValue1 + txValue2, 'Resolutor\'s balance has increased by the value of the reward')
+      })
+    })
+
+    context('a campaign has been already executed', function () {
+      const issueId = 'new-campaign-16'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('should fail to withdraw funds twice', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, issueManager)
+        }).then(function () {
+          // One second past the pre-reward period
+          return increaseTime(60 * 60 * 24 + 1)
+        }).then(function () {
+          return withdrawFunds(issueId, resolutor)
+        }).then(function (campaign) {
+          assert.equal(campaign[0], true, 'Campaign has been executed')
+        }).then(function () {
+          return withdrawFunds(issueId, resolutor)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaigns.call(issueId)
+        }).then(function (campaign) {
+          assert.equal(campaign[0], true, 'Campaign status is unmodified')
+          assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
+        })
+      })
+    })
+
+    context('a resolution hasn\'t been verified yet', function () {
+      const issueId = 'new-campaign-17'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('should fail to withdraw funds', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return withdrawFunds(issueId, resolutor)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaigns.call(issueId)
+        }).then(function (campaign) {
+          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+        })
+      })
+    })
+
+    context('msg.sender is not the issue resolutor', function () {
+      const issueId = 'new-campaign-18'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('should fail to withdraw funds', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, issueManager)
+        }).then(function () {
+          // One second past the pre-reward period
+          return increaseTime(60 * 60 * 24 + 1)
+        }).then(function () {
+          return withdrawFunds(issueId, accounts[2])
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaigns.call(issueId)
+        }).then(function (campaign) {
+          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+        })
+      })
+    })
+
+    context('right before the execution period end', function () {
+      const issueId = 'new-campaign-19'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('successfully withdraws the whole campaing\'s amount as a reward', function () {
+        return newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, issueManager)
+        }).then(function () {
+          // The execution period end is one week after the reward period end,
+          // that is 7 + 1 days from the moment the resolution has been verified
+          return increaseTime(60 * 60 * 24 * 8)
+        }).then(function () {
+          return withdrawFunds(issueId, resolutor)
+        }).then(function (campaign) {
+          assert.equal(campaign[0], true, 'Campaign has been executed')
+          // Campaign's total amount will keep track of the total amount that has
+          // been paid by the campaign
+          assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaignFunds.call(issueId, funder)
+        }).then(function (amount) {
+          assert.equal(amount.toNumber(), txValue, 'Campaign\'s funder amount is unmodified')
+        })
+      })
+    })
+
+    // TODO: I think this is not fair. The author of the issue's resolution
+    // should always been able to withdraw their reward.
+    context('past the execution period', function () {
+      const issueId = 'new-campaign-20'
+      const commitSHA = 'sha'
+      const funder = accounts[1]
+      const txValue = 10
+      const resolutor = accounts[1]
+
+      it('should fail to rollback funds', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, issueManager)
+        }).then(function () {
+          return increaseTime(60 * 60 * 24 * 8 + 1)
+        }).then(function () {
+          return withdrawFunds(issueId, resolutor)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return Issuehunter.deployed()
+        }).then(function (instance) {
+          return instance.campaigns.call(issueId)
+        }).then(function (campaign) {
+          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+        })
+      })
+    })
+
+    context('a campaign that doesn\'t exist', function () {
+      const issueId = 'invalid'
+      const funder = accounts[1]
+
+      it('should fail to rollback funds', function () {
+        const finalState = Issuehunter.deployed().then(function (instance) {
+          return instance.withdrawFunds(issueId, { from: funder })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
