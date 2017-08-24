@@ -389,7 +389,7 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return rollbackFunds(issueId, funder1)
       }).then(function (campaign) {
-        assert.equal(campaign[1].toNumber(), 12, 'Campaign\'s total amount should be updated')
+        assert.equal(campaign[1].toNumber(), txValue2, 'Campaign\'s total amount should be updated')
         return Issuehunter.deployed()
       }).then(function (instance) {
         return instance.campaignFunds.call(issueId, funder1)
