@@ -65,6 +65,10 @@ const currentBlockTimestamp = function () {
   })
 }
 
+const addressBalance = Promise.denodeify(function (address, callback) {
+  web3.eth.getBalance(address, web3.eth.defaultBlock, callback)
+})
+
 contract('Issuehunter', function (accounts) {
   const issueManager = accounts[0]
 
