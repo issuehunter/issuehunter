@@ -18,9 +18,14 @@ const findEvent = function (transactionResult, eventName) {
 // Assertion helper to test contract exceptions.
 const assertContractException = function (promise, message) {
   return promise.then(function () {
-    assert(false, message)
+    assert.fail(message, 'Exception missing')
   }).catch(function (err) {
-    assert(err.toString().indexOf('invalid opcode') > -1, message)
+    if (err.toString().indexOf('invalid opcode') > -1) {
+      assert(true, message)
+    } else {
+      console.error('Transation exception', err)
+      assert.fail(message, `Unexpected exception: ${err}`)
+    }
   })
 }
 
