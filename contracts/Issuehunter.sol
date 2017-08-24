@@ -10,10 +10,12 @@ contract Issuehunter {
 
     // The time in seconds between when a resolution has been verified and when
     // funders can't rollback their funds anymore.
+    // TODO: rename to preRewardPeriod
     uint public defaultRewardPeriod;
 
     // The time in seconds between the reward period end and when the resolutor
     // can't withdraw campaign's funds anymore.
+    // TODO: rename to rewardPeriod
     uint public defaultExecutePeriod;
 
     // A crowdfunding campaign.
@@ -41,9 +43,11 @@ contract Issuehunter {
         mapping(address => bytes32) resolutions;
 
         // TODO: write doc
+        // TODO: rename to preRewardPeriodExpiresAt
         uint rewardPeriodExpiresAt;
 
         // TODO: write doc
+        // TODO: rename to rewardPeriodExpiresAt
         uint executePeriodExpiresAt;
 
         // The address of the entity that proposed a resolution that has been
