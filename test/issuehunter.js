@@ -71,75 +71,76 @@ const addressBalance = Promise.denodeify(function (address, callback) {
 
 contract('Issuehunter', function (accounts) {
   const issueManager = accounts[0]
+  const issuehunter = Issuehunter.deployed()
 
   const newCampaign = function (issueId, account) {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.createCampaign(issueId, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'CampaignCreated'), 'A new `CampaignCreated` event has been triggered')
-      return Issuehunter.deployed()
+      return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
     })
   }
 
   const fundCampaign = function (issueId, value, account) {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.fund(issueId, { from: account, value: value })
     }).then(function (result) {
       assert(findEvent(result, 'CampaignFunded'), 'A new `CampaignFunded` event has been triggered')
-      return Issuehunter.deployed()
+      return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
     })
   }
 
   const submitResolution = function (issueId, commitSHA, account) {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.submitResolution(issueId, commitSHA, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'ResolutionProposed'), 'A new `ResolutionProposed` event has been triggered')
-      return Issuehunter.deployed()
+      return issuehunter
     }).then(function (instance) {
       return instance.campaignResolutions.call(issueId, account)
     })
   }
 
   const verifyResolution = function (issueId, resolutor, account) {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.verifyResolution(issueId, resolutor, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'ResolutionVerified'), 'A new `ResolutionVerified` event has been triggered')
-      return Issuehunter.deployed()
+      return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
     })
   }
 
   const rollbackFunds = function (issueId, account) {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.rollbackFunds(issueId, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'RollbackFunds'), 'A new `RollbackFunds` event has been triggered')
-      return Issuehunter.deployed()
+      return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
     })
   }
 
   const withdrawFunds = function (issueId, account) {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.withdrawFunds(issueId, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'WithdrawFunds'), 'A new `WithdrawFunds` event has been triggered')
-      return Issuehunter.deployed()
+      return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
     })
   }
 
   it('should make the first account the issue manager', function () {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.issueManager.call()
     }).then(function (issueManager) {
       assert.equal(issueManager.valueOf(), issueManager, 'The first account should be the issue manager')
@@ -147,7 +148,7 @@ contract('Issuehunter', function (accounts) {
   })
 
   it('should correctly initialize `defaultRewardPeriod` field', function () {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.defaultRewardPeriod.call()
     }).then(function (defaultRewardPeriod) {
       assert.equal(defaultRewardPeriod.toNumber(), 60 * 60 * 24, 'The default reward period should be one day in seconds')
@@ -155,7 +156,7 @@ contract('Issuehunter', function (accounts) {
   })
 
   it('should correctly initialize `defaultExecutePeriod` field', function () {
-    return Issuehunter.deployed().then(function (instance) {
+    return issuehunter.then(function (instance) {
       return instance.defaultExecutePeriod.call()
     }).then(function (defaultExecutePeriod) {
       assert.equal(defaultExecutePeriod.toNumber(), 60 * 60 * 24 * 7, 'The default execute period should be one week in seconds')
@@ -181,7 +182,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to create a new campaign', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.createCampaign(issueId, { from: accounts[1] })
         })
@@ -198,7 +199,7 @@ contract('Issuehunter', function (accounts) {
       const txValue1 = 12
       const txValue2 = 24
 
-      const initialTotal = Issuehunter.deployed().then(function (instance) {
+      const initialTotal = issuehunter.then(function (instance) {
         return instance.campaigns.call(issueId)
       }).then(function (campaign) {
         return campaign[1].toNumber()
@@ -211,7 +212,7 @@ contract('Issuehunter', function (accounts) {
         return Promise.all([initialTotal, fundCampaign(issueId, txValue1, funder)])
       }).then(function ([initialTotalValue, campaign]) {
         assert.equal(campaign[1].toNumber(), initialTotalValue + txValue1, 'Campaign\'s total amount should be updated')
-        return Issuehunter.deployed()
+        return issuehunter
       }).then(function (instance) {
         return instance.campaignFunds.call(issueId, funder)
       }).then(function (amount) {
@@ -220,7 +221,7 @@ contract('Issuehunter', function (accounts) {
         return Promise.all([initialTotal, fundCampaign(issueId, txValue2, funder)])
       }).then(function ([initialTotalValue, campaign]) {
         assert.equal(campaign[1].toNumber(), initialTotalValue + txValue1 + txValue2, 'Campaign\'s total amount should be updated')
-        return Issuehunter.deployed()
+        return issuehunter
       }).then(function (instance) {
         return instance.campaignFunds.call(issueId, funder)
       }).then(function (amount) {
@@ -232,7 +233,7 @@ contract('Issuehunter', function (accounts) {
       const issueId = 'invalid'
 
       it('should fail to add funds to the campaign', function () {
-        const finalState = Issuehunter.deployed().then(function (instance) {
+        const finalState = issuehunter.then(function (instance) {
           return instance.fund(issueId, { from: accounts[1], value: 12 })
         })
 
@@ -286,7 +287,7 @@ contract('Issuehunter', function (accounts) {
       const commitSHA = 'sha'
 
       it('should fail to submit a proposed resolution', function () {
-        const finalState = Issuehunter.deployed().then(function (instance) {
+        const finalState = issuehunter.then(function (instance) {
           return instance.submitResolution(issueId, commitSHA, { from: accounts[1] })
         })
 
@@ -370,7 +371,7 @@ contract('Issuehunter', function (accounts) {
       const resolutor = accounts[1]
 
       it('should fail to verify a proposed resolution', function () {
-        const finalState = Issuehunter.deployed().then(function (instance) {
+        const finalState = issuehunter.then(function (instance) {
           return instance.verifyResolution(issueId, resolutor, { from: issueManager })
         })
 
@@ -401,7 +402,7 @@ contract('Issuehunter', function (accounts) {
         return rollbackFunds(issueId, funder1)
       }).then(function (campaign) {
         assert.equal(campaign[1].toNumber(), txValue2, 'Campaign\'s total amount should be updated')
-        return Issuehunter.deployed()
+        return issuehunter
       }).then(function (instance) {
         return instance.campaignFunds.call(issueId, funder1)
       }).then(function (amount) {
@@ -426,7 +427,7 @@ contract('Issuehunter', function (accounts) {
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaignFunds.call(issueId, funder)
         }).then(function (amount) {
@@ -455,7 +456,7 @@ contract('Issuehunter', function (accounts) {
           return rollbackFunds(issueId, funder)
         }).then(function (campaign) {
           assert.equal(campaign[1].toNumber(), 0, 'Campaign\'s total amount should be updated')
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaignFunds.call(issueId, funder)
         }).then(function (amount) {
@@ -485,7 +486,7 @@ contract('Issuehunter', function (accounts) {
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaignFunds.call(issueId, funder)
         }).then(function (amount) {
@@ -513,7 +514,7 @@ contract('Issuehunter', function (accounts) {
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
@@ -527,7 +528,7 @@ contract('Issuehunter', function (accounts) {
       const funder = accounts[1]
 
       it('should fail to rollback funds', function () {
-        const finalState = Issuehunter.deployed().then(function (instance) {
+        const finalState = issuehunter.then(function (instance) {
           return instance.rollbackFunds(issueId, { from: funder })
         })
 
@@ -566,12 +567,12 @@ contract('Issuehunter', function (accounts) {
         // Campaign's total amount will keep track of the total amount that has
         // been paid by the campaign
         assert.equal(campaign[1].toNumber(), txValue1 + txValue2, 'Campaign\'s total amount is unmodified')
-        return Issuehunter.deployed()
+        return issuehunter
       }).then(function (instance) {
         return instance.campaignFunds.call(issueId, funder1)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue1, 'Campaign\'s funder amount is unmodified')
-        return Issuehunter.deployed()
+        return issuehunter
       }).then(function (instance) {
         return instance.campaignFunds.call(issueId, funder2)
       }).then(function (amount) {
@@ -612,7 +613,7 @@ contract('Issuehunter', function (accounts) {
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
@@ -639,7 +640,7 @@ contract('Issuehunter', function (accounts) {
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
@@ -670,7 +671,7 @@ contract('Issuehunter', function (accounts) {
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
@@ -704,7 +705,7 @@ contract('Issuehunter', function (accounts) {
           // Campaign's total amount will keep track of the total amount that has
           // been paid by the campaign
           assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaignFunds.call(issueId, funder)
         }).then(function (amount) {
@@ -736,7 +737,7 @@ contract('Issuehunter', function (accounts) {
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
-          return Issuehunter.deployed()
+          return issuehunter
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
@@ -750,7 +751,7 @@ contract('Issuehunter', function (accounts) {
       const funder = accounts[1]
 
       it('should fail to rollback funds', function () {
-        const finalState = Issuehunter.deployed().then(function (instance) {
+        const finalState = issuehunter.then(function (instance) {
           return instance.withdrawFunds(issueId, { from: funder })
         })
 
