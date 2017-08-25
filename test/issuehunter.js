@@ -862,10 +862,8 @@ contract('Issuehunter', function (accounts) {
 
     context('right after a funding transaction', function () {
       const issueId = 'new-campaign-23'
-      const commitSHA = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
 
       it('should fail to withdraw spare funds', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
