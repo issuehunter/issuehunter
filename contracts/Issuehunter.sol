@@ -249,10 +249,11 @@ contract Issuehunter {
     function withdrawSpareFunds(bytes32 issueId) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
-        // Funders can't withdraw spare funds if contract has been executed
-        require(!campaigns[issueId].executed);
+        // Funders can't withdraw spare funds until a resolution has been
+        // verified and the contract has been executed
+        require(campaigns[issueId].resolutor != 0 && !campaigns[issueId].executed);
         // Funders can withdraw spare funds only after execute period has expired
-        require(now >= campaigns[issueId].executePeriodExpiresAt);
+        require(now > campaigns[issueId].executePeriodExpiresAt);
 
         uint amount = _rollbackFunds(campaigns[issueId], msg.sender);
 
