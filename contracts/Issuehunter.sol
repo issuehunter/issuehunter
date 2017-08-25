@@ -149,13 +149,17 @@ contract Issuehunter {
     //    commit SHA that has been proposed as a resolution
     // 2. the resolution submitter address is included in one of the commit
     //    messages in the branch that contains the resolution
-    function verifyResolution(bytes32 issueId, address resolutor) {
+    //
+    // The function will throw an exception if the resolutor and its associated
+    // patch commit SHA don't match to the function arguments. This will prevent
+    // concurrent updates of a patch submitted by the same author.
+    function verifyResolution(bytes32 issueId, address resolutor, bytes32 commitSHA) {
         // Only issue manager is allowed to call this function
         require(msg.sender == issueManager);
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
-        // Fail if resolutor didn't submit any resolution yet
-        require(campaigns[issueId].resolutions[resolutor] != 0);
+        // Fail if resolutor didn't submit the selected patch
+        require(campaigns[issueId].resolutions[resolutor] == commitSHA);
         // Fail if a resolution has been already verified
         require(campaigns[issueId].resolutor == 0);
 

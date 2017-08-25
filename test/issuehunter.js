@@ -106,9 +106,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const verifyResolution = function (issueId, resolutor, account) {
+  const verifyResolution = function (issueId, resolutor, commitSHA, account) {
     return issuehunter.then(function (instance) {
-      return instance.verifyResolution(issueId, resolutor, { from: account })
+      return instance.verifyResolution(issueId, resolutor, commitSHA, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'ResolutionVerified'), 'A new `ResolutionVerified` event has been triggered')
       return issuehunter
@@ -316,7 +316,7 @@ contract('Issuehunter', function (accounts) {
       const resolutionVerified = newCampaign(issueId, accounts[1]).then(function () {
         return submitResolution(issueId, commitSHA, resolutor)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, issueManager)
+        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
       })
 
       return resolutionVerified.then(function () {
@@ -337,11 +337,11 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function (campaign) {
           assert.equal(campaign[5].valueOf(), resolutor, '`resolutor` address should be resolutor\'s address')
           // Test that the campaign can have just one resolution
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -357,7 +357,7 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return submitResolution(issueId, commitSHA, accounts[2])
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -366,24 +366,54 @@ contract('Issuehunter', function (accounts) {
 
     context('an address that\'s not associated to the issue manager', function () {
       const issueId = 'new-campaign-9'
+      const commitSHA = 'sha'
       const resolutor = accounts[1]
 
       it('should fail to verify a proposed resolution', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return verifyResolution(issueId, resolutor, accounts[1])
+          return verifyResolution(issueId, resolutor, commitSHA, accounts[1])
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
       })
     })
 
+    // This is the case when a patch's author submits two different commits in
+    // sequence and, while the issue manager is sending a transaction to verify
+    // the first patch, the second submission transaction is executed.
+    context('resolution commit SHA and parameters don\'t match', function () {
+      const issueId = 'new-campaign-mismatch'
+      const commitSHA1 = 'sha1'
+      const commitSHA2 = 'sha1'
+      const resolutor = accounts[1]
+
+      it('should fail to verify the outdated resolution', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return submitResolution(issueId, commitSHA1, resolutor)
+        }).then(function () {
+          return submitResolution(issueId, commitSHA2, resolutor)
+        }).then(function () {
+          return verifyResolution(issueId, resolutor, commitSHA1, issueManager)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown').then(function () {
+          return issuehunter
+        }).then(function (instance) {
+          return instance.campaigns.call(issueId)
+        }).then(function (campaign) {
+          assert.equal(campaign[5].valueOf(), 0, '`resolutor` is still unset')
+        })
+      })
+    })
+
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
+      const commitSHA = 'sha'
       const resolutor = accounts[1]
 
       it('should fail to verify a proposed resolution', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.verifyResolution(issueId, resolutor, { from: issueManager })
+          return instance.verifyResolution(issueId, resolutor, commitSHA, { from: issueManager })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -408,7 +438,7 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return submitResolution(issueId, commitSHA, resolutor)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, issueManager)
+        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
       }).then(function () {
         return rollbackFunds(issueId, funder1)
       }).then(function (campaign) {
@@ -460,7 +490,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           return increaseTime(60 * 60 * 24)
         }).then(function () {
@@ -489,7 +519,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
@@ -519,7 +549,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           return rollbackFunds(issueId, accounts[2])
         })
@@ -567,7 +597,7 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return submitResolution(issueId, commitSHA, resolutor)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, issueManager)
+        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
       }).then(function () {
         // One second past the pre-reward period
         return increaseTime(60 * 60 * 24 + 1)
@@ -611,7 +641,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -673,7 +703,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -704,7 +734,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           // The execution period end is one week after the reward period end,
           // that is 7 + 1 days from the moment the resolution has been verified
@@ -740,7 +770,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
@@ -790,7 +820,7 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return submitResolution(issueId, commitSHA, resolutor)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, issueManager)
+        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
       }).then(function () {
         // The execution period end is one week after the reward period end,
         // that is 7 + 1 days from the moment the resolution has been verified
@@ -834,7 +864,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -895,7 +925,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           // One second past the post-reward period
           return increaseTime(60 * 60 * 24 * 8 + 1)
@@ -926,7 +956,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return submitResolution(issueId, commitSHA, resolutor)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, issueManager)
+          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {
