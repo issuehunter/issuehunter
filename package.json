@@ -1,0 +1,41 @@
+{
+  "name": "issuehunter",
+  "description": "Open Source Crowdfunding on the Ethereum Blockchain",
+  "version": "0.0.1",
+  "author": "Giovanni Cappellotto <potomak84@gmail.com>",
+  "license": "Apache-2.0",
+  "homepage": "https://issuehunter.github.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/issuehunter/issuehunter.git"
+  },
+  "contributors": [
+    {
+      "name": "Matteo Centenaro",
+      "email": "bugant@gmail.com"
+    },
+    {
+      "name": "Giorgia Marenda",
+      "email": "giorgia.marenda@gmail.com"
+    }
+  ],
+  "scripts": {
+    "lint": "eslint --ext .js test && solium --dir contracts && solium --dir test",
+    "test": "truffle test",
+    "testrpc": "testrpc"
+  },
+  "devDependencies": {
+    "eslint": "^4.4.1",
+    "eslint-config-standard": "^10.2.1",
+    "eslint-plugin-import": "^2.7.0",
+    "eslint-plugin-node": "^5.1.1",
+    "eslint-plugin-promise": "^3.5.0",
+    "eslint-plugin-standard": "^3.0.1",
+    "ethereumjs-testrpc": "^4.0.1",
+    "solium": "^0.5.5"
+  },
+  "dependencies": {
+    "promise": "^8.0.1",
+    "truffle": "^3.4.8"
+  }
+}

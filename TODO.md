@@ -1,6 +1,6 @@
 # TODO
 
-1. Proposed solution: define one contract for all issues. A struct for each
+√. Proposed solution: define one contract for all issues. A struct for each
   issue, that has a layout that is similar to current contract's state
   variables, and a map to store all issues, indexed by a unique id. I wasn't
   able to find any document that states that the cost of a lookup is
