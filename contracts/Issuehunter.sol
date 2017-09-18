@@ -4,9 +4,8 @@ pragma solidity ^0.4.11;
 // TODO: contract description
 contract Issuehunter {
 
-    // The address of the entity that can very proposed resolutions.
-    // TODO: rename (?) "campaign manager", "resolution verifier"
-    address public issueManager;
+    // The address of the entity that will verify proposed resolutions.
+    address public patchVerifier;
 
     // The time in seconds between when a resolution has been verified and when
     // funders can't rollback their funds anymore.
@@ -71,9 +70,9 @@ contract Issuehunter {
     event WithdrawFunds(bytes32 indexed issueId, address resolutor);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
 
-    /// Create a new Issuehunter with message's sender as the issue manager.
+    /// Create a new Issuehunter with message's sender as the patch verifier.
     function Issuehunter() {
-        issueManager = msg.sender;
+        patchVerifier = msg.sender;
         // The default reward period is one day
         defaultRewardPeriod = 86400;
         // The default execution period is one week.
@@ -123,7 +122,7 @@ contract Issuehunter {
 
     // Submit a new resolution proposal.
     //
-    // TODO: the submitter must pay a fee to let the issue manager send the
+    // TODO: the submitter must pay a fee to let the patch verifier send the
     // transaction that verifies the proposed resolution.
     function submitResolution(bytes32 issueId, bytes32 commitSHA) {
         // Require that a campaign exists
@@ -140,9 +139,9 @@ contract Issuehunter {
 
     // Verify a proposed resolution.
     //
-    // Only the issue manager can invoke this function.
+    // Only the patch verifier can invoke this function.
     //
-    // The issue manager must verify that:
+    // The patch verifier must verify that:
     //
     // 1. the proposed resolution is a real solution for the selected issue, for
     //    instance by checking that the project's master branch includes the
@@ -154,8 +153,8 @@ contract Issuehunter {
     // patch commit SHA don't match to the function arguments. This will prevent
     // concurrent updates of a patch submitted by the same author.
     function verifyResolution(bytes32 issueId, address resolutor, bytes32 commitSHA) {
-        // Only issue manager is allowed to call this function
-        require(msg.sender == issueManager);
+        // Only patch verifier is allowed to call this function
+        require(msg.sender == patchVerifier);
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if resolutor didn't submit the selected patch
