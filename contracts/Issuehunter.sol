@@ -70,7 +70,8 @@ contract Issuehunter {
     event WithdrawFunds(bytes32 indexed issueId, address resolutor);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
 
-    /// Create a new Issuehunter with message's sender as the patch verifier.
+    /// Create a new contract instance and set message sender as the patch
+    //  verifier.
     function Issuehunter() {
         patchVerifier = msg.sender;
         // The default reward period is one day
