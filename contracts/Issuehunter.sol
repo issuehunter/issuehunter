@@ -28,17 +28,21 @@ contract Issuehunter {
         // The total amount of funds associated to the issue.
         uint total;
 
-        // The address that created the campaign. Mainly used to check if a campaign
-        // for a selected issue is already present in the `campaigns` mappings.
+        // The address that created the campaign. Mainly used to check if a
+        // campaign for a selected issue is already present in the `campaigns`
+        // mappings.
         address createdBy;
 
         // A mapping between funders' addresses and their fund amount.
+        //
         // By default funds amounts are zeroes.
+        //
         // TODO: rename to "amounts"?
         mapping(address => uint) funds;
 
-        // A mapping between resolution proposers addresses and resolution ids.
-        // A proposed resolution id
+        // A mapping between resolution proposers addresses and resolution ids,
+        // that are commit SHA.
+        //
         // TODO: rename to "proposed resolutions"?
         mapping(address => bytes32) resolutions;
 
@@ -53,9 +57,9 @@ contract Issuehunter {
         // The address of the entity that proposed a resolution that has been
         // verified.
         //
-        // Note: if this address is different from the default 0x0000000 address,
-        // then a proposed resolution has been verified and `resolvedBy` is the
-        // patch author's address.
+        // Note: if this address is different from the default 0x0000000
+        // address, then a proposed resolution has been verified and
+        // `resolvedBy` is the patch author's address.
         address resolvedBy;
     }
 
@@ -179,7 +183,8 @@ contract Issuehunter {
     //
     // Withdrawing campaign funds after a proposed resolution has been verified
     // will incur in a fee. The fee will be added to funds from the null address
-    // (0x0000000) and it will be included in the campaign's total reward amount.
+    // (0x0000000) and it will be included in the campaign's total reward
+    // amount.
     function rollbackFunds(bytes32 issueId) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
@@ -227,9 +232,10 @@ contract Issuehunter {
         WithdrawFunds(issueId, msg.sender);
 
         // TODO: archive campaign (?)
-        // If we archive campaigns we can create new campaigns for the same issue,
-        // but at the same time there can always be at most one active campaign
-        // per issue id.
+        //
+        // If we archive campaigns we can create new campaigns for the same
+        // issue, but at the same time there can always be at most one active
+        // campaign per issue id.
     }
 
     // TODO: create a new "archive" function to archive a campaign (?)
@@ -262,7 +268,8 @@ contract Issuehunter {
         // Funders can't withdraw spare funds until a resolution has been
         // verified and the contract has been executed
         require(campaigns[issueId].resolvedBy != 0 && !campaigns[issueId].executed);
-        // Funders can withdraw spare funds only after execute period has expired
+        // Funders can withdraw spare funds only after execute period has
+        // expired
         require(now > campaigns[issueId].executePeriodExpiresAt);
 
         uint amount = _rollbackFunds(campaigns[issueId], msg.sender);
@@ -282,9 +289,9 @@ contract Issuehunter {
         return amount;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
     // Getters
-    //////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
     function campaignFunds(bytes32 issueId, address funder) returns (uint amount) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
