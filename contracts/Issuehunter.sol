@@ -113,9 +113,9 @@ contract Issuehunter {
 
     // Submit a new patch.
     //
-    // TODO: the submitter must pay a fee to let the patch verifier send the
-    // transaction that verifies the submitted patch.
-    function submitResolution(bytes32 issueId, bytes32 commitSHA) {
+    // TODO: the sender must pay a fee that will be used by the patch verifier
+    // to send the transaction to verify the patch.
+    function submitPatch(bytes32 issueId, bytes32 commitSHA) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if sender already submitted the same patch
@@ -143,7 +143,7 @@ contract Issuehunter {
     // the associated patch commit SHA don't match with the function arguments.
     // This will prevent concurrent updates of a patch submitted by the same
     // author.
-    function verifyResolution(bytes32 issueId, address author, bytes32 commitSHA) {
+    function verifyPatch(bytes32 issueId, address author, bytes32 commitSHA) {
         // Only patch verifier is allowed to call this function
         require(msg.sender == patchVerifier);
         // Require that a campaign exists

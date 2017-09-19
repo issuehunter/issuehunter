@@ -95,9 +95,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const submitResolution = function (issueId, commitSHA, account) {
+  const submitPatch = function (issueId, commitSHA, account) {
     return issuehunter.then(function (instance) {
-      return instance.submitResolution(issueId, commitSHA, { from: account })
+      return instance.submitPatch(issueId, commitSHA, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'PatchSubmitted'), 'A new `PatchSubmitted` event has been triggered')
       return issuehunter
@@ -106,9 +106,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const verifyResolution = function (issueId, author, commitSHA, account) {
+  const verifyPatch = function (issueId, author, commitSHA, account) {
     return issuehunter.then(function (instance) {
-      return instance.verifyResolution(issueId, author, commitSHA, { from: account })
+      return instance.verifyPatch(issueId, author, commitSHA, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'PatchVerified'), 'A new `PatchVerified` event has been triggered')
       return issuehunter
@@ -253,25 +253,25 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  describe('submitResolution', function () {
+  describe('submitPatch', function () {
     it('should store a new commit associated to the transaction sender', function () {
       const issueId = 'new-campaign-4'
       const commitSHA1 = 'sha-1'
       const commitSHA2 = 'sha-2'
 
       return newCampaign(issueId, accounts[1]).then(function () {
-        // Test a `submitResolution` transaction from account 2
-        return submitResolution(issueId, commitSHA1, accounts[1])
+        // Test a `submitPatch` transaction from account 2
+        return submitPatch(issueId, commitSHA1, accounts[1])
       }).then(function (commitSHA) {
         assert.equal(web3.toUtf8(commitSHA), commitSHA1, 'Patch has been stored')
-        // Test a `submitResolution` transaction for the same commit SHA from a
+        // Test a `submitPatch` transaction for the same commit SHA from a
         // different account
-        return submitResolution(issueId, commitSHA1, accounts[2])
+        return submitPatch(issueId, commitSHA1, accounts[2])
       }).then(function (commitSHA) {
         assert.equal(web3.toUtf8(commitSHA), commitSHA1, 'Patch has been stored')
-        // Test a `submitResolution` transaction for a new commit SHA from
+        // Test a `submitPatch` transaction for a new commit SHA from
         // account 2
-        return submitResolution(issueId, commitSHA2, accounts[1])
+        return submitPatch(issueId, commitSHA2, accounts[1])
       }).then(function (commitSHA) {
         assert.equal(web3.toUtf8(commitSHA), commitSHA2, 'Patch has been stored')
       })
@@ -283,13 +283,13 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to submit the same patch twice', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          // Test a `submitResolution` transaction from account 2
-          return submitResolution(issueId, commitSHA, accounts[1])
+          // Test a `submitPatch` transaction from account 2
+          return submitPatch(issueId, commitSHA, accounts[1])
         }).then(function (storedCommitSHA) {
           assert.equal(web3.toUtf8(storedCommitSHA), commitSHA, 'Patch has been stored')
-          // Test a `submitResolution` transaction for the same commit SHA from
+          // Test a `submitPatch` transaction for the same commit SHA from
           // account 2
-          return submitResolution(issueId, commitSHA, accounts[1])
+          return submitPatch(issueId, commitSHA, accounts[1])
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -302,7 +302,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to submit a patch', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.submitResolution(issueId, commitSHA, { from: accounts[1] })
+          return instance.submitPatch(issueId, commitSHA, { from: accounts[1] })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -310,16 +310,16 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  describe('verifyResolution', function () {
+  describe('verifyPatch', function () {
     it('should set the selected address as the campaign\'s resolvedBy', function () {
       const issueId = 'new-campaign-6'
       const commitSHA = 'sha'
       const author = accounts[1]
 
       const patchVerified = newCampaign(issueId, accounts[1]).then(function () {
-        return submitResolution(issueId, commitSHA, author)
+        return submitPatch(issueId, commitSHA, author)
       }).then(function () {
-        return verifyResolution(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, commitSHA, patchVerifier)
       })
 
       return patchVerified.then(function () {
@@ -338,13 +338,13 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to verify again any patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function (campaign) {
           assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
           // Test that the campaign can have at most one verified patch
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -358,9 +358,9 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitResolution(issueId, commitSHA, accounts[2])
+          return submitPatch(issueId, commitSHA, accounts[2])
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -374,7 +374,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return verifyResolution(issueId, author, commitSHA, accounts[1])
+          return verifyPatch(issueId, author, commitSHA, accounts[1])
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -392,11 +392,11 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to verify the outdated patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitResolution(issueId, commitSHA1, author)
+          return submitPatch(issueId, commitSHA1, author)
         }).then(function () {
-          return submitResolution(issueId, commitSHA2, author)
+          return submitPatch(issueId, commitSHA2, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA1, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA1, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -416,7 +416,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to verify a patch', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.verifyResolution(issueId, author, commitSHA, { from: patchVerifier })
+          return instance.verifyPatch(issueId, author, commitSHA, { from: patchVerifier })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -439,9 +439,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitResolution(issueId, commitSHA, author)
+        return submitPatch(issueId, commitSHA, author)
       }).then(function () {
-        return verifyResolution(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, commitSHA, patchVerifier)
       }).then(function () {
         return rollbackFunds(issueId, funder1)
       }).then(function (campaign) {
@@ -465,7 +465,7 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
           return rollbackFunds(issueId, funder)
         })
@@ -491,9 +491,9 @@ contract('Issuehunter', function (accounts) {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24)
         }).then(function () {
@@ -520,9 +520,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
@@ -550,9 +550,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           return rollbackFunds(issueId, accounts[2])
         })
@@ -598,9 +598,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitResolution(issueId, commitSHA, author)
+        return submitPatch(issueId, commitSHA, author)
       }).then(function () {
-        return verifyResolution(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, commitSHA, patchVerifier)
       }).then(function () {
         // One second past the pre-reward period
         return increaseTime(60 * 60 * 24 + 1)
@@ -642,9 +642,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -678,7 +678,7 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
           return withdrawFunds(issueId, author)
         })
@@ -704,9 +704,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -735,9 +735,9 @@ contract('Issuehunter', function (accounts) {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           // The execution period end is one week after the pre-reward period
           // ends, that is 7 + 1 days from the moment the patch has been
@@ -772,9 +772,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
@@ -822,9 +822,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitResolution(issueId, commitSHA, author)
+        return submitPatch(issueId, commitSHA, author)
       }).then(function () {
-        return verifyResolution(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, commitSHA, patchVerifier)
       }).then(function () {
         // The execution period end is one week after the pre-reward period
         // ends, that is 7 + 1 days from the moment the patch has been verified
@@ -866,9 +866,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -927,9 +927,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           // One second past the reward period
           return increaseTime(60 * 60 * 24 * 8 + 1)
@@ -958,9 +958,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, author)
+          return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return verifyResolution(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {
