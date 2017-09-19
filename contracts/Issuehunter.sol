@@ -108,12 +108,7 @@ contract Issuehunter {
         campaigns[issueId].funds[msg.sender] += msg.value;
         campaigns[issueId].total += msg.value;
 
-        CampaignFunded(
-            issueId,
-            msg.sender,
-            now,
-            msg.value
-        );
+        CampaignFunded(issueId, msg.sender, now, msg.value);
     }
 
     // Submit a new patch.
