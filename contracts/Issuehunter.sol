@@ -17,10 +17,8 @@ contract Issuehunter {
 
     // A crowdfunding campaign.
     struct Campaign {
-        // A flag that stores the information that a proposed resolution reward
-        // has been assigned.
-        // TODO: rename to "rewarded" ?
-        bool executed;
+        // A flag that is true if a verified patch author's has been rewarded.
+        bool rewarded;
 
         // The total amount of funds associated to the issue.
         uint total;
@@ -86,7 +84,7 @@ contract Issuehunter {
         require(campaigns[issueId].createdBy == 0);
 
         campaigns[issueId] = Campaign({
-            executed: false,
+            rewarded: false,
             total: 0,
             createdBy: msg.sender,
             preRewardPeriodExpiresAt: 0,
@@ -211,8 +209,8 @@ contract Issuehunter {
         require(campaigns[issueId].createdBy != 0);
         // Fail if all funds have been rolled back
         require(campaigns[issueId].total > 0);
-        // Funds can be withdrawed only once
-        require(!campaigns[issueId].executed);
+        // A campaign can be rewarded only once
+        require(!campaigns[issueId].rewarded);
         // Only the verified patch's author is allowed to withdraw funds
         require(msg.sender == campaigns[issueId].resolvedBy);
         // Withdraw can happen only within the execution period, that is after
@@ -222,7 +220,7 @@ contract Issuehunter {
         // withdraw a reward even after the `rewardPeriodExpiresAt` has passed?
         require(now <= campaigns[issueId].rewardPeriodExpiresAt);
 
-        campaigns[issueId].executed = true;
+        campaigns[issueId].rewarded = true;
         msg.sender.transfer(campaigns[issueId].total);
         WithdrawFunds(issueId, msg.sender);
 
@@ -260,9 +258,9 @@ contract Issuehunter {
     function withdrawSpareFunds(bytes32 issueId) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
-        // Funders can't withdraw spare funds until a resolution has been
-        // verified and the contract has been executed
-        require(campaigns[issueId].resolvedBy != 0 && !campaigns[issueId].executed);
+        // Funders can't withdraw spare funds if a resolution has been verified
+        // and the campaign has been rewarded
+        require(campaigns[issueId].resolvedBy != 0 && !campaigns[issueId].rewarded);
         // Funders can withdraw spare funds only after execute period has
         // expired
         require(now > campaigns[issueId].rewardPeriodExpiresAt);

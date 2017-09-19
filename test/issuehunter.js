@@ -179,7 +179,7 @@ contract('Issuehunter', function (accounts) {
       const issueId = 'new-campaign-1'
 
       return newCampaign(issueId, accounts[1]).then(function (campaign) {
-        assert.equal(campaign[0], false, 'A new campaign that has not been executed should be present')
+        assert.equal(campaign[0], false, 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
         assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
@@ -604,7 +604,7 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return withdrawFunds(issueId, author)
       }).then(function (campaign) {
-        assert.equal(campaign[0], true, 'Campaign has been executed')
+        assert.equal(campaign[0], true, 'Campaign has been rewarded')
         // Campaign's total amount will keep track of the total amount that has
         // been paid by the campaign
         assert.equal(campaign[1].toNumber(), txValue1 + txValue2, 'Campaign\'s total amount is unmodified')
@@ -628,7 +628,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a campaign has been already executed', function () {
+    context('a campaign has been already rewarded', function () {
       const issueId = 'new-campaign-16'
       const commitSHA = 'sha'
       const funder = accounts[1]
@@ -648,7 +648,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return withdrawFunds(issueId, author)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign has been executed')
+          assert.equal(campaign[0], true, 'Campaign has been rewarded')
         }).then(function () {
           return withdrawFunds(issueId, author)
         })
@@ -685,7 +685,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+          assert.equal(campaign[0], false, 'Campaign hasn\'t been rewarded')
         })
       })
     })
@@ -716,7 +716,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+          assert.equal(campaign[0], false, 'Campaign hasn\'t been rewarded')
         })
       })
     })
@@ -743,7 +743,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return withdrawFunds(issueId, author)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign has been executed')
+          assert.equal(campaign[0], true, 'Campaign has been rewarded')
           // Campaign's total amount will keep track of the total amount that has
           // been paid by the campaign
           assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
@@ -783,7 +783,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+          assert.equal(campaign[0], false, 'Campaign hasn\'t been rewarded')
         })
       })
     })
@@ -852,7 +852,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a campaign has been already executed', function () {
+    context('a campaign has been already rewarded', function () {
       const issueId = 'new-campaign-22'
       const commitSHA = 'sha'
       const funder = accounts[1]
@@ -872,7 +872,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return withdrawFunds(issueId, author)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign has been executed')
+          assert.equal(campaign[0], true, 'Campaign has been rewarded')
         }).then(function () {
           // One second past the reward period
           return increaseTime(60 * 60 * 24 * 7)
