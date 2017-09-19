@@ -1102,4 +1102,26 @@ contract('Issuehunter', function (accounts) {
       })
     })
   })
+
+  describe('is Mortal', function () {
+    it('does not allow to call kill', function () {
+      return Issuehunter.new().then(function (instance) {
+        return instance.kill({from: accounts[1]})
+      }).then(function () {
+        assert(false, 'it is supposed to fail')
+      }).catch(function () {
+        assert(true, 'kill failed as expected')
+      })
+    })
+
+    it('allows to call kill', function () {
+      return Issuehunter.new().then(function (instance) {
+        return instance.kill({from: accounts[0]})
+      }).then(function () {
+        assert(true, 'contract killed')
+      }).catch(function () {
+        assert(false, 'it is supposed to successed')
+      })
+    })
+  })
 })

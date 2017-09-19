@@ -1,8 +1,9 @@
 pragma solidity ^0.4.11;
 
+import "./Mortal.sol";
 
 // TODO: contract description
-contract Issuehunter {
+contract Issuehunter is Mortal {
 
     // The address of the entity that will manage proposed patches in case no
     // address is specified during campaign creation.
