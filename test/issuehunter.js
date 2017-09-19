@@ -262,30 +262,33 @@ contract('Issuehunter', function (accounts) {
       return newCampaign(issueId, accounts[1]).then(function () {
         // Test a `submitResolution` transaction from account 2
         return submitResolution(issueId, commitSHA1, accounts[1])
-      }).then(function (proposedCommitSHA) {
-        assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA1, 'Proposed resolution has been stored')
-        // Test a `submitResolution` transaction for the same commit SHA from a different account
+      }).then(function (commitSHA) {
+        assert.equal(web3.toUtf8(commitSHA), commitSHA1, 'Patch has been stored')
+        // Test a `submitResolution` transaction for the same commit SHA from a
+        // different account
         return submitResolution(issueId, commitSHA1, accounts[2])
-      }).then(function (proposedCommitSHA) {
-        assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA1, 'Proposed resolution has been stored')
-        // Test a `submitResolution` transaction for a new commit SHA from account 2
+      }).then(function (commitSHA) {
+        assert.equal(web3.toUtf8(commitSHA), commitSHA1, 'Patch has been stored')
+        // Test a `submitResolution` transaction for a new commit SHA from
+        // account 2
         return submitResolution(issueId, commitSHA2, accounts[1])
-      }).then(function (proposedCommitSHA) {
-        assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA2, 'Proposed resolution has been stored')
+      }).then(function (commitSHA) {
+        assert.equal(web3.toUtf8(commitSHA), commitSHA2, 'Patch has been stored')
       })
     })
 
-    context('account already proposed a resolution', function () {
+    context('account already submitted a patch', function () {
       const issueId = 'new-campaign-5'
       const commitSHA = 'sha'
 
-      it('should fail to submit the same proposed resolution twice', function () {
+      it('should fail to submit the same patch twice', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           // Test a `submitResolution` transaction from account 2
           return submitResolution(issueId, commitSHA, accounts[1])
-        }).then(function (proposedCommitSHA) {
-          assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA, 'Proposed resolution has been stored')
-          // Test a `submitResolution` transaction for the same commit SHA from account 2
+        }).then(function (storedCommitSHA) {
+          assert.equal(web3.toUtf8(storedCommitSHA), commitSHA, 'Patch has been stored')
+          // Test a `submitResolution` transaction for the same commit SHA from
+          // account 2
           return submitResolution(issueId, commitSHA, accounts[1])
         })
 
@@ -297,7 +300,7 @@ contract('Issuehunter', function (accounts) {
       const issueId = 'invalid'
       const commitSHA = 'sha'
 
-      it('should fail to submit a proposed resolution', function () {
+      it('should fail to submit a patch', function () {
         const finalState = issuehunter.then(function (instance) {
           return instance.submitResolution(issueId, commitSHA, { from: accounts[1] })
         })
@@ -313,14 +316,14 @@ contract('Issuehunter', function (accounts) {
       const commitSHA = 'sha'
       const author = accounts[1]
 
-      const resolutionVerified = newCampaign(issueId, accounts[1]).then(function () {
+      const patchVerified = newCampaign(issueId, accounts[1]).then(function () {
         return submitResolution(issueId, commitSHA, author)
       }).then(function () {
         return verifyResolution(issueId, author, commitSHA, patchVerifier)
       })
 
-      return resolutionVerified.then(function () {
-        return Promise.all([resolutionVerified, currentBlockTimestamp()])
+      return patchVerified.then(function () {
+        return Promise.all([patchVerified, currentBlockTimestamp()])
       }).then(function ([campaign, now]) {
         assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`preRewardPeriodExpiresAt` value should have been updated')
         assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`rewardPeriodExpiresAt` value should have been updated')
@@ -328,19 +331,19 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a resolution has been already verified', function () {
+    context('a patch has been already verified', function () {
       const issueId = 'new-campaign-7'
       const commitSHA = 'sha'
       const author = accounts[1]
 
-      it('should fail to verify again any resolution', function () {
+      it('should fail to verify again any patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return submitResolution(issueId, commitSHA, author)
         }).then(function () {
           return verifyResolution(issueId, author, commitSHA, patchVerifier)
         }).then(function (campaign) {
           assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
-          // Test that the campaign can have just one resolution
+          // Test that the campaign can have at most one verified patch
           return verifyResolution(issueId, author, commitSHA, patchVerifier)
         })
 
@@ -348,12 +351,12 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a resolution that doesn\'t exist', function () {
+    context('a patch that doesn\'t exist', function () {
       const issueId = 'new-campaign-8'
       const commitSHA = 'sha'
       const author = accounts[1]
 
-      it('should fail to verify a proposed resolution', function () {
+      it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return submitResolution(issueId, commitSHA, accounts[2])
         }).then(function () {
@@ -369,7 +372,7 @@ contract('Issuehunter', function (accounts) {
       const commitSHA = 'sha'
       const author = accounts[1]
 
-      it('should fail to verify a proposed resolution', function () {
+      it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return verifyResolution(issueId, author, commitSHA, accounts[1])
         })
@@ -381,13 +384,13 @@ contract('Issuehunter', function (accounts) {
     // This is the case when a patch's author submits two different commits in
     // sequence and, while the patch verifier is sending a transaction to verify
     // the first patch, the second submission transaction is executed.
-    context('resolution commit SHA and parameters don\'t match', function () {
+    context('patch commit SHA and parameters don\'t match', function () {
       const issueId = 'new-campaign-mismatch'
       const commitSHA1 = 'sha1'
       const commitSHA2 = 'sha1'
       const author = accounts[1]
 
-      it('should fail to verify the outdated resolution', function () {
+      it('should fail to verify the outdated patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return submitResolution(issueId, commitSHA1, author)
         }).then(function () {
@@ -411,7 +414,7 @@ contract('Issuehunter', function (accounts) {
       const commitSHA = 'sha'
       const author = accounts[1]
 
-      it('should fail to verify a proposed resolution', function () {
+      it('should fail to verify a patch', function () {
         const finalState = issuehunter.then(function (instance) {
           return instance.verifyResolution(issueId, author, commitSHA, { from: patchVerifier })
         })
@@ -451,7 +454,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a resolution hasn\'t been verified yet', function () {
+    context('a patch hasn\'t been verified yet', function () {
       const issueId = 'new-campaign-11'
       const commitSHA = 'sha'
       const funder = accounts[1]
@@ -664,7 +667,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a resolution hasn\'t been verified yet', function () {
+    context('a patch hasn\'t been verified yet', function () {
       const issueId = 'new-campaign-17'
       const commitSHA = 'sha'
       const funder = accounts[1]
@@ -737,7 +740,7 @@ contract('Issuehunter', function (accounts) {
           return verifyResolution(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
           // The execution period end is one week after the pre-reward period
-          // ends, that is 7 + 1 days from the moment the resolution has been
+          // ends, that is 7 + 1 days from the moment the patch has been
           // verified
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {
@@ -756,8 +759,8 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    // TODO: I think this is not fair. The author of the issue's resolution
-    // should always been able to withdraw their reward.
+    // TODO: I think this is not fair. The verified patch's author should always
+    // be able to withdraw their reward.
     context('past the execution period', function () {
       const issueId = 'new-campaign-20'
       const commitSHA = 'sha'
@@ -824,9 +827,9 @@ contract('Issuehunter', function (accounts) {
         return verifyResolution(issueId, author, commitSHA, patchVerifier)
       }).then(function () {
         // The execution period end is one week after the pre-reward period
-        // ends, that is 7 + 1 days from the moment the resolution has been
-        // verified Funders are allowed to withdraw spare funds right after the
-        // execution period is expired
+        // ends, that is 7 + 1 days from the moment the patch has been verified
+        // Funders are allowed to withdraw spare funds right after the execution
+        // period is expired
         return increaseTime(60 * 60 * 24 * 8 + 1)
       }).then(function () {
         return withdrawSpareFunds(issueId, funder1)
