@@ -9,8 +9,7 @@ contract Issuehunter {
 
     // The time in seconds between when a resolution has been verified and when
     // funders can't rollback their funds anymore.
-    // TODO: rename to preRewardPeriod
-    uint public defaultRewardPeriod;
+    uint public preRewardPeriod;
 
     // The time in seconds between the reward period end and when the verified
     // patch's author can't withdraw campaign's reward anymore.
@@ -47,8 +46,7 @@ contract Issuehunter {
         mapping(address => bytes32) resolutions;
 
         // TODO: write doc
-        // TODO: rename to preRewardPeriodExpiresAt
-        uint rewardPeriodExpiresAt;
+        uint preRewardPeriodExpiresAt;
 
         // TODO: write doc
         // TODO: rename to rewardPeriodExpiresAt
@@ -78,8 +76,8 @@ contract Issuehunter {
     //  verifier.
     function Issuehunter() {
         patchVerifier = msg.sender;
-        // The default reward period is one day
-        defaultRewardPeriod = 86400;
+        // The default pre-reward period is one day
+        preRewardPeriod = 86400;
         // The default execution period is one week.
         defaultExecutePeriod = 604800;
     }
@@ -94,7 +92,7 @@ contract Issuehunter {
             executed: false,
             total: 0,
             createdBy: msg.sender,
-            rewardPeriodExpiresAt: 0,
+            preRewardPeriodExpiresAt: 0,
             executePeriodExpiresAt: 0,
             resolvedBy: 0
         });
@@ -169,8 +167,8 @@ contract Issuehunter {
         require(campaigns[issueId].resolvedBy == 0);
 
         campaigns[issueId].resolvedBy = author;
-        campaigns[issueId].rewardPeriodExpiresAt = now + defaultRewardPeriod;
-        campaigns[issueId].executePeriodExpiresAt = campaigns[issueId].rewardPeriodExpiresAt + defaultExecutePeriod;
+        campaigns[issueId].preRewardPeriodExpiresAt = now + preRewardPeriod;
+        campaigns[issueId].executePeriodExpiresAt = campaigns[issueId].preRewardPeriodExpiresAt + defaultExecutePeriod;
 
         ResolutionVerified(issueId, author, campaigns[issueId].resolutions[author]);
     }
@@ -178,7 +176,7 @@ contract Issuehunter {
     // Campaign funders can withdraw their fund from a campaign under certain
     // conditions.
     //
-    // They can't withdraw their funds after `defaultRewardPeriod` seconds have
+    // They can't withdraw their funds after `preRewardPeriod` seconds have
     // passed from the time when a proposed resolution has been verified.
     //
     // Withdrawing campaign funds after a proposed resolution has been verified
@@ -191,7 +189,7 @@ contract Issuehunter {
         // Fail if the issue hasn't been resolved yet
         require(campaigns[issueId].resolvedBy != 0);
         // Fail if reward period has expired
-        require(now <= campaigns[issueId].rewardPeriodExpiresAt);
+        require(now <= campaigns[issueId].preRewardPeriodExpiresAt);
 
         uint amount = _rollbackFunds(campaigns[issueId], msg.sender);
 
@@ -207,7 +205,7 @@ contract Issuehunter {
     //
     // Campaign funds can be withdrawn if:
     //
-    // * `rewardPeriodExpiresAt` has passed
+    // * `preRewardPeriodExpiresAt` has passed
     // * `executePeriodExpiresAt` hasn't passed
     // * the patch has been verified and the address requesting the transaction
     //   is the one stored as the verified patch's author (`resolvedBy`)
@@ -222,7 +220,7 @@ contract Issuehunter {
         require(msg.sender == campaigns[issueId].resolvedBy);
         // Withdraw can happen only within the execution period, that is after
         // reward period has expired and before execution period expires
-        require(now > campaigns[issueId].rewardPeriodExpiresAt);
+        require(now > campaigns[issueId].preRewardPeriodExpiresAt);
         // TODO: remove this check (?), why prevent a verified patch's author to
         // withdraw a reward even after the `executePeriodExpiresAt` has passed?
         require(now <= campaigns[issueId].executePeriodExpiresAt);

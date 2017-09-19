@@ -158,11 +158,11 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  it('should correctly initialize `defaultRewardPeriod` field', function () {
+  it('should correctly initialize `preRewardPeriod` field', function () {
     return issuehunter.then(function (instance) {
-      return instance.defaultRewardPeriod.call()
-    }).then(function (defaultRewardPeriod) {
-      assert.equal(defaultRewardPeriod.toNumber(), 60 * 60 * 24, 'The default reward period should be one day in seconds')
+      return instance.preRewardPeriod.call()
+    }).then(function (preRewardPeriod) {
+      assert.equal(preRewardPeriod.toNumber(), 60 * 60 * 24, 'The default pre-reward period should be one day in seconds')
     })
   })
 
@@ -182,7 +182,7 @@ contract('Issuehunter', function (accounts) {
         assert.equal(campaign[0], false, 'A new campaign that has not been executed should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
         assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
-        assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
+        assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `executePeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
       })
@@ -322,7 +322,7 @@ contract('Issuehunter', function (accounts) {
       return resolutionVerified.then(function () {
         return Promise.all([resolutionVerified, currentBlockTimestamp()])
       }).then(function ([campaign, now]) {
-        assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`rewardPeriodExpiresAt` value should have been updated')
+        assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`preRewardPeriodExpiresAt` value should have been updated')
         assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`executePeriodExpiresAt` value should have been updated')
         assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
       })
@@ -477,7 +477,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('right before the reward period end', function () {
+    context('right before the pre-reward period end', function () {
       const issueId = 'new-campaign-12'
       const commitSHA = 'sha'
       const funder = accounts[1]
@@ -506,7 +506,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('past the reward period', function () {
+    context('past the pre-reward period', function () {
       const issueId = 'new-campaign-13'
       const commitSHA = 'sha'
       const funder = accounts[1]
@@ -736,8 +736,9 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyResolution(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
-          // The execution period end is one week after the reward period end,
-          // that is 7 + 1 days from the moment the resolution has been verified
+          // The execution period end is one week after the pre-reward period
+          // ends, that is 7 + 1 days from the moment the resolution has been
+          // verified
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {
           return withdrawFunds(issueId, author)
@@ -822,10 +823,10 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return verifyResolution(issueId, author, commitSHA, patchVerifier)
       }).then(function () {
-        // The execution period end is one week after the reward period end,
-        // that is 7 + 1 days from the moment the resolution has been verified
-        // Funders are allowed to withdraw spare funds right after the execution
-        // period is expired
+        // The execution period end is one week after the pre-reward period
+        // ends, that is 7 + 1 days from the moment the resolution has been
+        // verified Funders are allowed to withdraw spare funds right after the
+        // execution period is expired
         return increaseTime(60 * 60 * 24 * 8 + 1)
       }).then(function () {
         return withdrawSpareFunds(issueId, funder1)
@@ -873,7 +874,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function (campaign) {
           assert.equal(campaign[0], true, 'Campaign has been executed')
         }).then(function () {
-          // One second past the post-reward period
+          // One second past the reward period
           return increaseTime(60 * 60 * 24 * 7)
         }).then(function () {
           return withdrawSpareFunds(issueId, funder)
@@ -927,7 +928,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyResolution(issueId, author, commitSHA, patchVerifier)
         }).then(function () {
-          // One second past the post-reward period
+          // One second past the reward period
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
           return withdrawSpareFunds(issueId, accounts[2])
