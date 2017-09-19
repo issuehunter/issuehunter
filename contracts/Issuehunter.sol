@@ -59,8 +59,8 @@ contract Issuehunter {
 
     event CampaignCreated(bytes32 indexed issueId, address creator, uint timestamp);
     event CampaignFunded(bytes32 indexed issueId, address funder, uint timestamp, uint amount);
-    event ResolutionProposed(bytes32 indexed issueId, address resolvedBy, bytes32 commitSHA);
-    event ResolutionVerified(bytes32 indexed issueId, address resolvedBy, bytes32 commitSHA);
+    event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 commitSHA);
+    event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 commitSHA);
     event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
     event WithdrawFunds(bytes32 indexed issueId, address resolvedBy);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
@@ -130,7 +130,7 @@ contract Issuehunter {
 
         campaigns[issueId].patches[msg.sender] = commitSHA;
 
-        ResolutionProposed(issueId, msg.sender, commitSHA);
+        PatchSubmitted(issueId, msg.sender, commitSHA);
     }
 
     // Verify a patch.
@@ -162,7 +162,7 @@ contract Issuehunter {
         campaigns[issueId].preRewardPeriodExpiresAt = now + preRewardPeriod;
         campaigns[issueId].rewardPeriodExpiresAt = campaigns[issueId].preRewardPeriodExpiresAt + rewardPeriod;
 
-        ResolutionVerified(issueId, author, campaigns[issueId].patches[author]);
+        PatchVerified(issueId, author, campaigns[issueId].patches[author]);
     }
 
     // Campaign funders can withdraw their fund from a campaign under certain

@@ -99,7 +99,7 @@ contract('Issuehunter', function (accounts) {
     return issuehunter.then(function (instance) {
       return instance.submitResolution(issueId, commitSHA, { from: account })
     }).then(function (result) {
-      assert(findEvent(result, 'ResolutionProposed'), 'A new `ResolutionProposed` event has been triggered')
+      assert(findEvent(result, 'PatchSubmitted'), 'A new `PatchSubmitted` event has been triggered')
       return issuehunter
     }).then(function (instance) {
       return instance.campaignResolutions.call(issueId, account)
@@ -110,7 +110,7 @@ contract('Issuehunter', function (accounts) {
     return issuehunter.then(function (instance) {
       return instance.verifyResolution(issueId, author, commitSHA, { from: account })
     }).then(function (result) {
-      assert(findEvent(result, 'ResolutionVerified'), 'A new `ResolutionVerified` event has been triggered')
+      assert(findEvent(result, 'PatchVerified'), 'A new `PatchVerified` event has been triggered')
       return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
