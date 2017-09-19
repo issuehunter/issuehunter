@@ -166,11 +166,11 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  it('should correctly initialize `defaultExecutePeriod` field', function () {
+  it('should correctly initialize `rewardPeriod` field', function () {
     return issuehunter.then(function (instance) {
-      return instance.defaultExecutePeriod.call()
-    }).then(function (defaultExecutePeriod) {
-      assert.equal(defaultExecutePeriod.toNumber(), 60 * 60 * 24 * 7, 'The default execute period should be one week in seconds')
+      return instance.rewardPeriod.call()
+    }).then(function (rewardPeriod) {
+      assert.equal(rewardPeriod.toNumber(), 60 * 60 * 24 * 7, 'The default reward period should be one week in seconds')
     })
   })
 
@@ -183,7 +183,7 @@ contract('Issuehunter', function (accounts) {
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
         assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
-        assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `executePeriodExpiresAt` value should be present')
+        assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
       })
     })
@@ -323,7 +323,7 @@ contract('Issuehunter', function (accounts) {
         return Promise.all([resolutionVerified, currentBlockTimestamp()])
       }).then(function ([campaign, now]) {
         assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`preRewardPeriodExpiresAt` value should have been updated')
-        assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`executePeriodExpiresAt` value should have been updated')
+        assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`rewardPeriodExpiresAt` value should have been updated')
         assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
       })
     })
