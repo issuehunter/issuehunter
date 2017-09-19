@@ -128,9 +128,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const withdrawFunds = function (issueId, account) {
+  const withdrawReward = function (issueId, account) {
     return issuehunter.then(function (instance) {
-      return instance.withdrawFunds(issueId, { from: account })
+      return instance.withdrawReward(issueId, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'WithdrawFunds'), 'A new `WithdrawFunds` event has been triggered')
       return issuehunter
@@ -581,7 +581,7 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  describe('withdrawFunds', function () {
+  describe('withdrawReward', function () {
     it('should withdraw the whole campaing\'s amount as a reward', function () {
       const issueId = 'new-campaign-15'
       const commitSHA = 'sha'
@@ -605,7 +605,7 @@ contract('Issuehunter', function (accounts) {
         // One second past the pre-reward period
         return increaseTime(60 * 60 * 24 + 1)
       }).then(function () {
-        return withdrawFunds(issueId, author)
+        return withdrawReward(issueId, author)
       }).then(function (campaign) {
         assert.ok(campaign[0], 'Campaign has been rewarded')
         // Campaign's total amount will keep track of the total amount that has
@@ -638,7 +638,7 @@ contract('Issuehunter', function (accounts) {
       const txValue = 10
       const author = accounts[1]
 
-      it('should fail to withdraw funds twice', function () {
+      it('should fail to withdraw reward twice', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
@@ -649,11 +649,11 @@ contract('Issuehunter', function (accounts) {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, author)
+          return withdrawReward(issueId, author)
         }).then(function (campaign) {
           assert.ok(campaign[0], 'Campaign has been rewarded')
         }).then(function () {
-          return withdrawFunds(issueId, author)
+          return withdrawReward(issueId, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -674,13 +674,13 @@ contract('Issuehunter', function (accounts) {
       const txValue = 10
       const author = accounts[1]
 
-      it('should fail to withdraw funds', function () {
+      it('should fail to withdraw reward', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, commitSHA, author)
         }).then(function () {
-          return withdrawFunds(issueId, author)
+          return withdrawReward(issueId, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -700,7 +700,7 @@ contract('Issuehunter', function (accounts) {
       const txValue = 10
       const author = accounts[1]
 
-      it('should fail to withdraw funds', function () {
+      it('should fail to withdraw reward', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
@@ -711,7 +711,7 @@ contract('Issuehunter', function (accounts) {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, accounts[2])
+          return withdrawReward(issueId, accounts[2])
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -744,7 +744,7 @@ contract('Issuehunter', function (accounts) {
           // verified
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {
-          return withdrawFunds(issueId, author)
+          return withdrawReward(issueId, author)
         }).then(function (campaign) {
           assert.ok(campaign[0], 'Campaign has been rewarded')
           // Campaign's total amount will keep track of the total amount that has
@@ -778,7 +778,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, author)
+          return withdrawReward(issueId, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -797,7 +797,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to rollback funds', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.withdrawFunds(issueId, { from: funder })
+          return instance.withdrawReward(issueId, { from: funder })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -873,7 +873,7 @@ contract('Issuehunter', function (accounts) {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, author)
+          return withdrawReward(issueId, author)
         }).then(function (campaign) {
           assert.ok(campaign[0], 'Campaign has been rewarded')
         }).then(function () {
@@ -923,7 +923,7 @@ contract('Issuehunter', function (accounts) {
       const txValue = 10
       const author = accounts[1]
 
-      it('should fail to withdraw funds', function () {
+      it('should fail to withdraw reward', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
@@ -983,7 +983,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to rollback funds', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.withdrawFunds(issueId, { from: funder })
+          return instance.withdrawReward(issueId, { from: funder })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')

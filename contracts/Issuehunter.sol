@@ -196,14 +196,15 @@ contract Issuehunter {
     // * `rewardPeriodExpiresAt` hasn't passed
     // * the patch has been verified and the address requesting the transaction
     //   is the one stored as the verified patch's author (`resolvedBy`)
-    function withdrawFunds(bytes32 issueId) {
+    function withdrawReward(bytes32 issueId) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if all funds have been rolled back
         require(campaigns[issueId].total > 0);
         // A campaign can be rewarded only once
         require(!campaigns[issueId].rewarded);
-        // Only the verified patch's author is allowed to withdraw funds
+        // Only the verified patch's author is allowed to withdraw the
+        // campaign's reward
         require(msg.sender == campaigns[issueId].resolvedBy);
         // Withdraw can happen only within the execution period, that is after
         // reward period has expired and before execution period expires
