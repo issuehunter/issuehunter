@@ -95,9 +95,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const submitPatch = function (issueId, commitSHA, account) {
+  const submitPatch = function (issueId, ref, account) {
     return issuehunter.then(function (instance) {
-      return instance.submitPatch(issueId, commitSHA, { from: account })
+      return instance.submitPatch(issueId, ref, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'PatchSubmitted'), 'A new `PatchSubmitted` event has been triggered')
       return issuehunter
@@ -106,9 +106,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const verifyPatch = function (issueId, author, commitSHA, account) {
+  const verifyPatch = function (issueId, author, ref, account) {
     return issuehunter.then(function (instance) {
-      return instance.verifyPatch(issueId, author, commitSHA, { from: account })
+      return instance.verifyPatch(issueId, author, ref, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'PatchVerified'), 'A new `PatchVerified` event has been triggered')
       return issuehunter
@@ -254,42 +254,41 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('submitPatch', function () {
-    it('should store a new commit associated to the transaction sender', function () {
+    it('should store a new ref associated to the transaction sender', function () {
       const issueId = 'new-campaign-4'
-      const commitSHA1 = 'sha-1'
-      const commitSHA2 = 'sha-2'
+      const ref1 = 'sha-1'
+      const ref2 = 'sha-2'
 
       return newCampaign(issueId, accounts[1]).then(function () {
         // Test a `submitPatch` transaction from account 2
-        return submitPatch(issueId, commitSHA1, accounts[1])
-      }).then(function (commitSHA) {
-        assert.equal(web3.toUtf8(commitSHA), commitSHA1, 'Patch has been stored')
+        return submitPatch(issueId, ref1, accounts[1])
+      }).then(function (ref) {
+        assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
         // Test a `submitPatch` transaction for the same commit SHA from a
         // different account
-        return submitPatch(issueId, commitSHA1, accounts[2])
-      }).then(function (commitSHA) {
-        assert.equal(web3.toUtf8(commitSHA), commitSHA1, 'Patch has been stored')
-        // Test a `submitPatch` transaction for a new commit SHA from
-        // account 2
-        return submitPatch(issueId, commitSHA2, accounts[1])
-      }).then(function (commitSHA) {
-        assert.equal(web3.toUtf8(commitSHA), commitSHA2, 'Patch has been stored')
+        return submitPatch(issueId, ref1, accounts[2])
+      }).then(function (ref) {
+        assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
+        // Test a `submitPatch` transaction for a new commit SHA from account 2
+        return submitPatch(issueId, ref2, accounts[1])
+      }).then(function (ref) {
+        assert.equal(web3.toUtf8(ref), ref2, 'Patch has been stored')
       })
     })
 
     context('account already submitted a patch', function () {
       const issueId = 'new-campaign-5'
-      const commitSHA = 'sha'
+      const ref = 'sha'
 
       it('should fail to submit the same patch twice', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           // Test a `submitPatch` transaction from account 2
-          return submitPatch(issueId, commitSHA, accounts[1])
+          return submitPatch(issueId, ref, accounts[1])
         }).then(function (storedCommitSHA) {
-          assert.equal(web3.toUtf8(storedCommitSHA), commitSHA, 'Patch has been stored')
+          assert.equal(web3.toUtf8(storedCommitSHA), ref, 'Patch has been stored')
           // Test a `submitPatch` transaction for the same commit SHA from
           // account 2
-          return submitPatch(issueId, commitSHA, accounts[1])
+          return submitPatch(issueId, ref, accounts[1])
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -298,11 +297,11 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
-      const commitSHA = 'sha'
+      const ref = 'sha'
 
       it('should fail to submit a patch', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.submitPatch(issueId, commitSHA, { from: accounts[1] })
+          return instance.submitPatch(issueId, ref, { from: accounts[1] })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -313,13 +312,13 @@ contract('Issuehunter', function (accounts) {
   describe('verifyPatch', function () {
     it('should set the selected address as the campaign\'s resolvedBy', function () {
       const issueId = 'new-campaign-6'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const author = accounts[1]
 
       const patchVerified = newCampaign(issueId, accounts[1]).then(function () {
-        return submitPatch(issueId, commitSHA, author)
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyPatch(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       })
 
       return patchVerified.then(function () {
@@ -333,18 +332,18 @@ contract('Issuehunter', function (accounts) {
 
     context('a patch has been already verified', function () {
       const issueId = 'new-campaign-7'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const author = accounts[1]
 
       it('should fail to verify again any patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function (campaign) {
           assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
           // Test that the campaign can have at most one verified patch
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -353,14 +352,14 @@ contract('Issuehunter', function (accounts) {
 
     context('a patch that doesn\'t exist', function () {
       const issueId = 'new-campaign-8'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const author = accounts[1]
 
       it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitPatch(issueId, commitSHA, accounts[2])
+          return submitPatch(issueId, ref, accounts[2])
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -369,34 +368,35 @@ contract('Issuehunter', function (accounts) {
 
     context('an address that\'s not associated to the patch verifier', function () {
       const issueId = 'new-campaign-9'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const author = accounts[1]
 
       it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return verifyPatch(issueId, author, commitSHA, accounts[1])
+          return verifyPatch(issueId, author, ref, accounts[1])
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
       })
     })
 
-    // This is the case when a patch's author submits two different commits in
-    // sequence and, while the patch verifier is sending a transaction to verify
-    // the first patch, the second submission transaction is executed.
-    context('patch commit SHA and parameters don\'t match', function () {
+    // This is the case when a patch's author submits two different refs in a
+    // row and, while the patch verifier is sending a transaction to verify the
+    // first patch. `verifyPatch` should fail because it's associated to an old
+    // author/ref combination.
+    context('patch\'s ref and parameters don\'t match', function () {
       const issueId = 'new-campaign-mismatch'
-      const commitSHA1 = 'sha1'
-      const commitSHA2 = 'sha1'
+      const ref1 = 'sha1'
+      const ref2 = 'sha1'
       const author = accounts[1]
 
       it('should fail to verify the outdated patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitPatch(issueId, commitSHA1, author)
+          return submitPatch(issueId, ref1, author)
         }).then(function () {
-          return submitPatch(issueId, commitSHA2, author)
+          return submitPatch(issueId, ref2, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA1, patchVerifier)
+          return verifyPatch(issueId, author, ref1, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -411,12 +411,12 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const author = accounts[1]
 
       it('should fail to verify a patch', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.verifyPatch(issueId, author, commitSHA, { from: patchVerifier })
+          return instance.verifyPatch(issueId, author, ref, { from: patchVerifier })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -427,7 +427,7 @@ contract('Issuehunter', function (accounts) {
   describe('rollbackFunds', function () {
     it('should remove funding from the selected campaign', function () {
       const issueId = 'new-campaign-10'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
       const txValue1 = 10
@@ -439,9 +439,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitPatch(issueId, commitSHA, author)
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyPatch(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
         return rollbackFunds(issueId, funder1)
       }).then(function (campaign) {
@@ -456,7 +456,7 @@ contract('Issuehunter', function (accounts) {
 
     context('a patch hasn\'t been verified yet', function () {
       const issueId = 'new-campaign-11'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -465,7 +465,7 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
           return rollbackFunds(issueId, funder)
         })
@@ -482,7 +482,7 @@ contract('Issuehunter', function (accounts) {
 
     context('right before the pre-reward period end', function () {
       const issueId = 'new-campaign-12'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -491,9 +491,9 @@ contract('Issuehunter', function (accounts) {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24)
         }).then(function () {
@@ -511,7 +511,7 @@ contract('Issuehunter', function (accounts) {
 
     context('past the pre-reward period', function () {
       const issueId = 'new-campaign-13'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -520,9 +520,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
@@ -541,7 +541,7 @@ contract('Issuehunter', function (accounts) {
 
     context('an address that\'s not associated to any funder', function () {
       const issueId = 'new-campaign-14'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -550,9 +550,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return rollbackFunds(issueId, accounts[2])
         })
@@ -584,7 +584,7 @@ contract('Issuehunter', function (accounts) {
   describe('withdrawReward', function () {
     it('should withdraw the whole campaing\'s amount as a reward', function () {
       const issueId = 'new-campaign-15'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
       const txValue1 = 10
@@ -598,9 +598,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitPatch(issueId, commitSHA, author)
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyPatch(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
         // One second past the pre-reward period
         return increaseTime(60 * 60 * 24 + 1)
@@ -633,7 +633,7 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign has been already rewarded', function () {
       const issueId = 'new-campaign-16'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -642,9 +642,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -669,7 +669,7 @@ contract('Issuehunter', function (accounts) {
 
     context('a patch hasn\'t been verified yet', function () {
       const issueId = 'new-campaign-17'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -678,7 +678,7 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
           return withdrawReward(issueId, author)
         })
@@ -695,7 +695,7 @@ contract('Issuehunter', function (accounts) {
 
     context('msg.sender is not the verified patch\'s author', function () {
       const issueId = 'new-campaign-18'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -704,9 +704,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -726,7 +726,7 @@ contract('Issuehunter', function (accounts) {
 
     context('right before the execution period end', function () {
       const issueId = 'new-campaign-19'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -735,9 +735,9 @@ contract('Issuehunter', function (accounts) {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // The execution period end is one week after the pre-reward period
           // ends, that is 7 + 1 days from the moment the patch has been
@@ -763,7 +763,7 @@ contract('Issuehunter', function (accounts) {
     // be able to withdraw their reward.
     context('past the execution period', function () {
       const issueId = 'new-campaign-20'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -772,9 +772,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
@@ -808,7 +808,7 @@ contract('Issuehunter', function (accounts) {
   describe('withdrawSpareFunds', function () {
     it('should withdraw spare funds in the campaing', function () {
       const issueId = 'new-campaign-21'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
       const txValue1 = 10
@@ -822,9 +822,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitPatch(issueId, commitSHA, author)
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyPatch(issueId, author, commitSHA, patchVerifier)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
         // The execution period end is one week after the pre-reward period
         // ends, that is 7 + 1 days from the moment the patch has been verified
@@ -857,7 +857,7 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign has been already rewarded', function () {
       const issueId = 'new-campaign-22'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -866,9 +866,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
@@ -918,7 +918,7 @@ contract('Issuehunter', function (accounts) {
 
     context('msg.sender is not a funder', function () {
       const issueId = 'new-campaign-24'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -927,9 +927,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // One second past the reward period
           return increaseTime(60 * 60 * 24 * 8 + 1)
@@ -949,7 +949,7 @@ contract('Issuehunter', function (accounts) {
 
     context('right before the execution period expiration', function () {
       const issueId = 'new-campaign-25'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
@@ -958,9 +958,9 @@ contract('Issuehunter', function (accounts) {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitPatch(issueId, commitSHA, author)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyPatch(issueId, author, commitSHA, patchVerifier)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {

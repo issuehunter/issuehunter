@@ -35,8 +35,8 @@ contract Issuehunter {
         // TODO: rename to "amounts"?
         mapping(address => uint) funds;
 
-        // A mapping between author addresses and patches ids, that are commit
-        // SHAs.
+        // A mapping between author addresses and patches ids, that are
+        // references to commit SHAs.
         mapping(address => bytes32) patches;
 
         // TODO: write doc
@@ -59,8 +59,8 @@ contract Issuehunter {
 
     event CampaignCreated(bytes32 indexed issueId, address creator, uint timestamp);
     event CampaignFunded(bytes32 indexed issueId, address funder, uint timestamp, uint amount);
-    event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 commitSHA);
-    event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 commitSHA);
+    event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
+    event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
     event WithdrawFunds(bytes32 indexed issueId, address resolvedBy);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
@@ -115,17 +115,17 @@ contract Issuehunter {
     //
     // TODO: the sender must pay a fee that will be used by the patch verifier
     // to send the transaction to verify the patch.
-    function submitPatch(bytes32 issueId, bytes32 commitSHA) {
+    function submitPatch(bytes32 issueId, bytes32 ref) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if sender already submitted the same patch
-        require(campaigns[issueId].patches[msg.sender] == 0 || campaigns[issueId].patches[msg.sender] != commitSHA);
+        require(campaigns[issueId].patches[msg.sender] == 0 || campaigns[issueId].patches[msg.sender] != ref);
 
         // TODO: require that a campaign hasn't any verified patch
 
-        campaigns[issueId].patches[msg.sender] = commitSHA;
+        campaigns[issueId].patches[msg.sender] = ref;
 
-        PatchSubmitted(issueId, msg.sender, commitSHA);
+        PatchSubmitted(issueId, msg.sender, ref);
     }
 
     // Verify a patch.
@@ -140,16 +140,15 @@ contract Issuehunter {
     // 2. the patch author address is included in the commit message
     //
     // The function will throw an exception if the patch author's address and
-    // the associated patch commit SHA don't match with the function arguments.
-    // This will prevent concurrent updates of a patch submitted by the same
-    // author.
-    function verifyPatch(bytes32 issueId, address author, bytes32 commitSHA) {
+    // the associated patch's ref don't match with the function arguments. This
+    // will prevent concurrent updates of a patch submitted by the same author.
+    function verifyPatch(bytes32 issueId, address author, bytes32 ref) {
         // Only patch verifier is allowed to call this function
         require(msg.sender == patchVerifier);
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if author didn't submit the selected patch
-        require(campaigns[issueId].patches[author] == commitSHA);
+        require(campaigns[issueId].patches[author] == ref);
         // Fail if a patche has been already verified
         require(campaigns[issueId].resolvedBy == 0);
 
@@ -285,7 +284,7 @@ contract Issuehunter {
         return campaigns[issueId].funds[funder];
     }
 
-    function campaignResolutions(bytes32 issueId, address author) returns (bytes32 commitSHA) {
+    function campaignResolutions(bytes32 issueId, address author) returns (bytes32 ref) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
