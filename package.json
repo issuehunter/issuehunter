@@ -1,7 +1,7 @@
 {
   "name": "issuehunter",
   "description": "Open Source Crowdfunding on the Ethereum Blockchain",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Giovanni Cappellotto <potomak84@gmail.com>",
   "license": "Apache-2.0",
   "homepage": "https://issuehunter.github.io",
