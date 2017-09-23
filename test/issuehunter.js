@@ -70,7 +70,7 @@ const addressBalance = Promise.denodeify(function (address, callback) {
 })
 
 contract('Issuehunter', function (accounts) {
-  const issueManager = accounts[0]
+  const patchVerifier = accounts[0]
   const issuehunter = Issuehunter.deployed()
 
   const newCampaign = function (issueId, account) {
@@ -95,22 +95,22 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const submitResolution = function (issueId, commitSHA, account) {
+  const submitPatch = function (issueId, ref, account) {
     return issuehunter.then(function (instance) {
-      return instance.submitResolution(issueId, commitSHA, { from: account })
+      return instance.submitPatch(issueId, ref, { from: account })
     }).then(function (result) {
-      assert(findEvent(result, 'ResolutionProposed'), 'A new `ResolutionProposed` event has been triggered')
+      assert(findEvent(result, 'PatchSubmitted'), 'A new `PatchSubmitted` event has been triggered')
       return issuehunter
     }).then(function (instance) {
       return instance.campaignResolutions.call(issueId, account)
     })
   }
 
-  const verifyResolution = function (issueId, resolutor, commitSHA, account) {
+  const verifyPatch = function (issueId, author, ref, account) {
     return issuehunter.then(function (instance) {
-      return instance.verifyResolution(issueId, resolutor, commitSHA, { from: account })
+      return instance.verifyPatch(issueId, author, ref, { from: account })
     }).then(function (result) {
-      assert(findEvent(result, 'ResolutionVerified'), 'A new `ResolutionVerified` event has been triggered')
+      assert(findEvent(result, 'PatchVerified'), 'A new `PatchVerified` event has been triggered')
       return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
@@ -128,9 +128,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const withdrawFunds = function (issueId, account) {
+  const withdrawReward = function (issueId, account) {
     return issuehunter.then(function (instance) {
-      return instance.withdrawFunds(issueId, { from: account })
+      return instance.withdrawReward(issueId, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'WithdrawFunds'), 'A new `WithdrawFunds` event has been triggered')
       return issuehunter
@@ -150,27 +150,27 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  it('should make the first account the issue manager', function () {
+  it('should make the first account the patch verifier', function () {
     return issuehunter.then(function (instance) {
-      return instance.issueManager.call()
-    }).then(function (issueManager) {
-      assert.equal(issueManager.valueOf(), issueManager, 'The first account should be the issue manager')
+      return instance.patchVerifier.call()
+    }).then(function (patchVerifier) {
+      assert.equal(patchVerifier.valueOf(), patchVerifier, 'The first account should be the patch verifier')
     })
   })
 
-  it('should correctly initialize `defaultRewardPeriod` field', function () {
+  it('should correctly initialize `preRewardPeriod` field', function () {
     return issuehunter.then(function (instance) {
-      return instance.defaultRewardPeriod.call()
-    }).then(function (defaultRewardPeriod) {
-      assert.equal(defaultRewardPeriod.toNumber(), 60 * 60 * 24, 'The default reward period should be one day in seconds')
+      return instance.preRewardPeriod.call()
+    }).then(function (preRewardPeriod) {
+      assert.equal(preRewardPeriod.toNumber(), 60 * 60 * 24, 'The default pre-reward period should be one day in seconds')
     })
   })
 
-  it('should correctly initialize `defaultExecutePeriod` field', function () {
+  it('should correctly initialize `rewardPeriod` field', function () {
     return issuehunter.then(function (instance) {
-      return instance.defaultExecutePeriod.call()
-    }).then(function (defaultExecutePeriod) {
-      assert.equal(defaultExecutePeriod.toNumber(), 60 * 60 * 24 * 7, 'The default execute period should be one week in seconds')
+      return instance.rewardPeriod.call()
+    }).then(function (rewardPeriod) {
+      assert.equal(rewardPeriod.toNumber(), 60 * 60 * 24 * 7, 'The default reward period should be one week in seconds')
     })
   })
 
@@ -179,12 +179,12 @@ contract('Issuehunter', function (accounts) {
       const issueId = 'new-campaign-1'
 
       return newCampaign(issueId, accounts[1]).then(function (campaign) {
-        assert.equal(campaign[0], false, 'A new campaign that has not been executed should be present')
+        assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
         assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
-        assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
-        assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `executePeriodExpiresAt` value should be present')
-        assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolutor` address should be present')
+        assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
+        assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
+        assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
       })
     })
 
@@ -253,40 +253,42 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  describe('submitResolution', function () {
-    it('should store a new commit associated to the transaction sender', function () {
+  describe('submitPatch', function () {
+    it('should store a new ref associated to the transaction sender', function () {
       const issueId = 'new-campaign-4'
-      const commitSHA1 = 'sha-1'
-      const commitSHA2 = 'sha-2'
+      const ref1 = 'sha-1'
+      const ref2 = 'sha-2'
 
       return newCampaign(issueId, accounts[1]).then(function () {
-        // Test a `submitResolution` transaction from account 2
-        return submitResolution(issueId, commitSHA1, accounts[1])
-      }).then(function (proposedCommitSHA) {
-        assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA1, 'Proposed resolution has been stored')
-        // Test a `submitResolution` transaction for the same commit SHA from a different account
-        return submitResolution(issueId, commitSHA1, accounts[2])
-      }).then(function (proposedCommitSHA) {
-        assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA1, 'Proposed resolution has been stored')
-        // Test a `submitResolution` transaction for a new commit SHA from account 2
-        return submitResolution(issueId, commitSHA2, accounts[1])
-      }).then(function (proposedCommitSHA) {
-        assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA2, 'Proposed resolution has been stored')
+        // Test a `submitPatch` transaction from account 2
+        return submitPatch(issueId, ref1, accounts[1])
+      }).then(function (ref) {
+        assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
+        // Test a `submitPatch` transaction for the same commit SHA from a
+        // different account
+        return submitPatch(issueId, ref1, accounts[2])
+      }).then(function (ref) {
+        assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
+        // Test a `submitPatch` transaction for a new commit SHA from account 2
+        return submitPatch(issueId, ref2, accounts[1])
+      }).then(function (ref) {
+        assert.equal(web3.toUtf8(ref), ref2, 'Patch has been stored')
       })
     })
 
-    context('account already proposed a resolution', function () {
+    context('account already submitted a patch', function () {
       const issueId = 'new-campaign-5'
-      const commitSHA = 'sha'
+      const ref = 'sha'
 
-      it('should fail to submit the same proposed resolution twice', function () {
+      it('should fail to submit the same patch twice', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          // Test a `submitResolution` transaction from account 2
-          return submitResolution(issueId, commitSHA, accounts[1])
-        }).then(function (proposedCommitSHA) {
-          assert.equal(web3.toUtf8(proposedCommitSHA), commitSHA, 'Proposed resolution has been stored')
-          // Test a `submitResolution` transaction for the same commit SHA from account 2
-          return submitResolution(issueId, commitSHA, accounts[1])
+          // Test a `submitPatch` transaction from account 2
+          return submitPatch(issueId, ref, accounts[1])
+        }).then(function (storedCommitSHA) {
+          assert.equal(web3.toUtf8(storedCommitSHA), ref, 'Patch has been stored')
+          // Test a `submitPatch` transaction for the same commit SHA from
+          // account 2
+          return submitPatch(issueId, ref, accounts[1])
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -295,11 +297,11 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
-      const commitSHA = 'sha'
+      const ref = 'sha'
 
-      it('should fail to submit a proposed resolution', function () {
+      it('should fail to submit a patch', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.submitResolution(issueId, commitSHA, { from: accounts[1] })
+          return instance.submitPatch(issueId, ref, { from: accounts[1] })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -307,93 +309,94 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  describe('verifyResolution', function () {
-    it('should set the selected address as the issue resolutor', function () {
+  describe('verifyPatch', function () {
+    it('should set the selected address as the campaign\'s resolvedBy', function () {
       const issueId = 'new-campaign-6'
-      const commitSHA = 'sha'
-      const resolutor = accounts[1]
+      const ref = 'sha'
+      const author = accounts[1]
 
-      const resolutionVerified = newCampaign(issueId, accounts[1]).then(function () {
-        return submitResolution(issueId, commitSHA, resolutor)
+      const patchVerified = newCampaign(issueId, accounts[1]).then(function () {
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       })
 
-      return resolutionVerified.then(function () {
-        return Promise.all([resolutionVerified, currentBlockTimestamp()])
+      return patchVerified.then(function () {
+        return Promise.all([patchVerified, currentBlockTimestamp()])
       }).then(function ([campaign, now]) {
-        assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`rewardPeriodExpiresAt` value should have been updated')
-        assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`executePeriodExpiresAt` value should have been updated')
-        assert.equal(campaign[5].valueOf(), resolutor, '`resolutor` address should be resolutor\'s address')
+        assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`preRewardPeriodExpiresAt` value should have been updated')
+        assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`rewardPeriodExpiresAt` value should have been updated')
+        assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
       })
     })
 
-    context('a resolution has been already verified', function () {
+    context('a patch has been already verified', function () {
       const issueId = 'new-campaign-7'
-      const commitSHA = 'sha'
-      const resolutor = accounts[1]
+      const ref = 'sha'
+      const author = accounts[1]
 
-      it('should fail to verify again any resolution', function () {
+      it('should fail to verify again any patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function (campaign) {
-          assert.equal(campaign[5].valueOf(), resolutor, '`resolutor` address should be resolutor\'s address')
-          // Test that the campaign can have just one resolution
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
+          // Test that the campaign can have at most one verified patch
+          return verifyPatch(issueId, author, ref, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
       })
     })
 
-    context('a resolution that doesn\'t exist', function () {
+    context('a patch that doesn\'t exist', function () {
       const issueId = 'new-campaign-8'
-      const commitSHA = 'sha'
-      const resolutor = accounts[1]
+      const ref = 'sha'
+      const author = accounts[1]
 
-      it('should fail to verify a proposed resolution', function () {
+      it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitResolution(issueId, commitSHA, accounts[2])
+          return submitPatch(issueId, ref, accounts[2])
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
       })
     })
 
-    context('an address that\'s not associated to the issue manager', function () {
+    context('an address that\'s not associated to the patch verifier', function () {
       const issueId = 'new-campaign-9'
-      const commitSHA = 'sha'
-      const resolutor = accounts[1]
+      const ref = 'sha'
+      const author = accounts[1]
 
-      it('should fail to verify a proposed resolution', function () {
+      it('should fail to verify a patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, accounts[1])
+          return verifyPatch(issueId, author, ref, accounts[1])
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
       })
     })
 
-    // This is the case when a patch's author submits two different commits in
-    // sequence and, while the issue manager is sending a transaction to verify
-    // the first patch, the second submission transaction is executed.
-    context('resolution commit SHA and parameters don\'t match', function () {
+    // This is the case when a patch's author submits two different refs in a
+    // row and, while the patch verifier is sending a transaction to verify the
+    // first patch. `verifyPatch` should fail because it's associated to an old
+    // author/ref combination.
+    context('patch\'s ref and parameters don\'t match', function () {
       const issueId = 'new-campaign-mismatch'
-      const commitSHA1 = 'sha1'
-      const commitSHA2 = 'sha1'
-      const resolutor = accounts[1]
+      const ref1 = 'sha1'
+      const ref2 = 'sha1'
+      const author = accounts[1]
 
-      it('should fail to verify the outdated resolution', function () {
+      it('should fail to verify the outdated patch', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitResolution(issueId, commitSHA1, resolutor)
+          return submitPatch(issueId, ref1, author)
         }).then(function () {
-          return submitResolution(issueId, commitSHA2, resolutor)
+          return submitPatch(issueId, ref2, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA1, issueManager)
+          return verifyPatch(issueId, author, ref1, patchVerifier)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -401,19 +404,19 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[5].valueOf(), 0, '`resolutor` is still unset')
+          assert.equal(campaign[5].valueOf(), 0, '`resolvedBy` is still unset')
         })
       })
     })
 
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
-      const commitSHA = 'sha'
-      const resolutor = accounts[1]
+      const ref = 'sha'
+      const author = accounts[1]
 
-      it('should fail to verify a proposed resolution', function () {
+      it('should fail to verify a patch', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.verifyResolution(issueId, resolutor, commitSHA, { from: issueManager })
+          return instance.verifyPatch(issueId, author, ref, { from: patchVerifier })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -424,21 +427,21 @@ contract('Issuehunter', function (accounts) {
   describe('rollbackFunds', function () {
     it('should remove funding from the selected campaign', function () {
       const issueId = 'new-campaign-10'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
       const txValue1 = 10
       const txValue2 = 12
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       return newCampaign(issueId, accounts[1]).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitResolution(issueId, commitSHA, resolutor)
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
         return rollbackFunds(issueId, funder1)
       }).then(function (campaign) {
@@ -451,18 +454,18 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a resolution hasn\'t been verified yet', function () {
+    context('a patch hasn\'t been verified yet', function () {
       const issueId = 'new-campaign-11'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('should fail to rollback funds', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
           return rollbackFunds(issueId, funder)
         })
@@ -477,20 +480,20 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('right before the reward period end', function () {
+    context('right before the pre-reward period end', function () {
       const issueId = 'new-campaign-12'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('remove funding from the selected campaign', function () {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24)
         }).then(function () {
@@ -506,20 +509,20 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('past the reward period', function () {
+    context('past the pre-reward period', function () {
       const issueId = 'new-campaign-13'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('should fail to rollback funds', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
@@ -538,18 +541,18 @@ contract('Issuehunter', function (accounts) {
 
     context('an address that\'s not associated to any funder', function () {
       const issueId = 'new-campaign-14'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('should fail to rollback funds', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return rollbackFunds(issueId, accounts[2])
         })
@@ -578,33 +581,33 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  describe('withdrawFunds', function () {
+  describe('withdrawReward', function () {
     it('should withdraw the whole campaing\'s amount as a reward', function () {
       const issueId = 'new-campaign-15'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
       const txValue1 = 10
       const txValue2 = 12
-      const resolutor = accounts[3]
+      const author = accounts[3]
 
-      const initialResolutorBalance = addressBalance(resolutor)
+      const initialAuthorBalance = addressBalance(author)
 
       return newCampaign(issueId, accounts[1]).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitResolution(issueId, commitSHA, resolutor)
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
         // One second past the pre-reward period
         return increaseTime(60 * 60 * 24 + 1)
       }).then(function () {
-        return withdrawFunds(issueId, resolutor)
+        return withdrawReward(issueId, author)
       }).then(function (campaign) {
-        assert.equal(campaign[0], true, 'Campaign has been executed')
+        assert.ok(campaign[0], 'Campaign has been rewarded')
         // Campaign's total amount will keep track of the total amount that has
         // been paid by the campaign
         assert.equal(campaign[1].toNumber(), txValue1 + txValue2, 'Campaign\'s total amount is unmodified')
@@ -618,39 +621,39 @@ contract('Issuehunter', function (accounts) {
         return instance.campaignFunds.call(issueId, funder2)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
-        return Promise.all([initialResolutorBalance, addressBalance(resolutor)])
+        return Promise.all([initialAuthorBalance, addressBalance(author)])
       }).then(function ([initialAmount, currentAmount]) {
         // TODO: find a better way to check for a user's account balance delta
         // This is a workaround and it won't work under all conditions. It
         // partially works because transactions are in wei, but gas are some
         // orders of magnitude more expensive
-        assert.equal(currentAmount.mod(10000) - initialAmount.mod(10000), txValue1 + txValue2, 'Resolutor\'s balance has increased by the value of the reward')
+        assert.equal(currentAmount.mod(10000) - initialAmount.mod(10000), txValue1 + txValue2, 'Verified patch\'s author balance has increased by the value of the reward')
       })
     })
 
-    context('a campaign has been already executed', function () {
+    context('a campaign has been already rewarded', function () {
       const issueId = 'new-campaign-16'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
-      it('should fail to withdraw funds twice', function () {
+      it('should fail to withdraw reward twice', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, resolutor)
+          return withdrawReward(issueId, author)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign has been executed')
+          assert.ok(campaign[0], 'Campaign has been rewarded')
         }).then(function () {
-          return withdrawFunds(issueId, resolutor)
+          return withdrawReward(issueId, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -658,26 +661,26 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign status is unmodified')
+          assert.ok(campaign[0], 'Campaign status is unmodified')
           assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
         })
       })
     })
 
-    context('a resolution hasn\'t been verified yet', function () {
+    context('a patch hasn\'t been verified yet', function () {
       const issueId = 'new-campaign-17'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
-      it('should fail to withdraw funds', function () {
+      it('should fail to withdraw reward', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return withdrawFunds(issueId, resolutor)
+          return withdrawReward(issueId, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -685,30 +688,30 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+          assert.ok(!campaign[0], 'Campaign hasn\'t been rewarded')
         })
       })
     })
 
-    context('msg.sender is not the issue resolutor', function () {
+    context('msg.sender is not the verified patch\'s author', function () {
       const issueId = 'new-campaign-18'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
-      it('should fail to withdraw funds', function () {
+      it('should fail to withdraw reward', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, accounts[2])
+          return withdrawReward(issueId, accounts[2])
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -716,33 +719,34 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+          assert.ok(!campaign[0], 'Campaign hasn\'t been rewarded')
         })
       })
     })
 
     context('right before the execution period end', function () {
       const issueId = 'new-campaign-19'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('successfully withdraws the whole campaing\'s amount as a reward', function () {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          // The execution period end is one week after the reward period end,
-          // that is 7 + 1 days from the moment the resolution has been verified
+          // The execution period end is one week after the pre-reward period
+          // ends, that is 7 + 1 days from the moment the patch has been
+          // verified
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {
-          return withdrawFunds(issueId, resolutor)
+          return withdrawReward(issueId, author)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign has been executed')
+          assert.ok(campaign[0], 'Campaign has been rewarded')
           // Campaign's total amount will keep track of the total amount that has
           // been paid by the campaign
           assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
@@ -755,26 +759,26 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    // TODO: I think this is not fair. The author of the issue's resolution
-    // should always been able to withdraw their reward.
+    // TODO: I think this is not fair. The verified patch's author should always
+    // be able to withdraw their reward.
     context('past the execution period', function () {
       const issueId = 'new-campaign-20'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('should fail to rollback funds', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, resolutor)
+          return withdrawReward(issueId, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -782,7 +786,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], false, 'Campaign hasn\'t been executed')
+          assert.ok(!campaign[0], 'Campaign hasn\'t been rewarded')
         })
       })
     })
@@ -793,7 +797,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to rollback funds', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.withdrawFunds(issueId, { from: funder })
+          return instance.withdrawReward(issueId, { from: funder })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -804,12 +808,12 @@ contract('Issuehunter', function (accounts) {
   describe('withdrawSpareFunds', function () {
     it('should withdraw spare funds in the campaing', function () {
       const issueId = 'new-campaign-21'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
       const txValue1 = 10
       const txValue2 = 12
-      const resolutor = accounts[3]
+      const author = accounts[3]
 
       const funder1InitialBalance = addressBalance(funder1)
 
@@ -818,12 +822,12 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
       }).then(function () {
-        return submitResolution(issueId, commitSHA, resolutor)
+        return submitPatch(issueId, ref, author)
       }).then(function () {
-        return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+        return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
-        // The execution period end is one week after the reward period end,
-        // that is 7 + 1 days from the moment the resolution has been verified
+        // The execution period end is one week after the pre-reward period
+        // ends, that is 7 + 1 days from the moment the patch has been verified
         // Funders are allowed to withdraw spare funds right after the execution
         // period is expired
         return increaseTime(60 * 60 * 24 * 8 + 1)
@@ -851,29 +855,29 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('a campaign has been already executed', function () {
+    context('a campaign has been already rewarded', function () {
       const issueId = 'new-campaign-22'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('should fail to withdraw spare funds', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
-          return withdrawFunds(issueId, resolutor)
+          return withdrawReward(issueId, author)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign has been executed')
+          assert.ok(campaign[0], 'Campaign has been rewarded')
         }).then(function () {
-          // One second past the post-reward period
+          // One second past the reward period
           return increaseTime(60 * 60 * 24 * 7)
         }).then(function () {
           return withdrawSpareFunds(issueId, funder)
@@ -884,7 +888,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function (instance) {
           return instance.campaigns.call(issueId)
         }).then(function (campaign) {
-          assert.equal(campaign[0], true, 'Campaign status is unmodified')
+          assert.ok(campaign[0], 'Campaign status is unmodified')
           assert.equal(campaign[1].toNumber(), txValue, 'Campaign\'s total amount is unmodified')
         })
       })
@@ -914,20 +918,20 @@ contract('Issuehunter', function (accounts) {
 
     context('msg.sender is not a funder', function () {
       const issueId = 'new-campaign-24'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
-      it('should fail to withdraw funds', function () {
+      it('should fail to withdraw reward', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          // One second past the post-reward period
+          // One second past the reward period
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
           return withdrawSpareFunds(issueId, accounts[2])
@@ -945,18 +949,18 @@ contract('Issuehunter', function (accounts) {
 
     context('right before the execution period expiration', function () {
       const issueId = 'new-campaign-25'
-      const commitSHA = 'sha'
+      const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
-      const resolutor = accounts[1]
+      const author = accounts[1]
 
       it('should fail to withdraw spare funds', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
-          return submitResolution(issueId, commitSHA, resolutor)
+          return submitPatch(issueId, ref, author)
         }).then(function () {
-          return verifyResolution(issueId, resolutor, commitSHA, issueManager)
+          return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
           return increaseTime(60 * 60 * 24 * 8)
         }).then(function () {
@@ -979,7 +983,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to rollback funds', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.withdrawFunds(issueId, { from: funder })
+          return instance.withdrawReward(issueId, { from: funder })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')

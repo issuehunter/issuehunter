@@ -4,60 +4,54 @@ pragma solidity ^0.4.11;
 // TODO: contract description
 contract Issuehunter {
 
-    // The address of the entity that can very proposed resolutions.
-    // TODO: rename (?) "campaign manager", "resolution verifier"
-    address public issueManager;
+    // The address of the entity that will verify proposed patches.
+    address public patchVerifier;
 
-    // The time in seconds between when a resolution has been verified and when
+    // The time in seconds between when a patch has been verified and when
     // funders can't rollback their funds anymore.
-    // TODO: rename to preRewardPeriod
-    uint public defaultRewardPeriod;
+    uint public preRewardPeriod;
 
-    // The time in seconds between the reward period end and when the resolutor
-    // can't withdraw campaign's funds anymore.
-    // TODO: rename to rewardPeriod
-    uint public defaultExecutePeriod;
+    // The time in seconds between the pre-reward period end and when the
+    // verified patch's author can't withdraw campaign's reward anymore.
+    uint public rewardPeriod;
 
     // A crowdfunding campaign.
     struct Campaign {
-        // A flag that stores the information that a proposed resolution reward
-        // has been assigned.
-        // TODO: rename to "rewarded" ?
-        bool executed;
+        // A flag that is true if a verified patch author's has been rewarded.
+        bool rewarded;
 
         // The total amount of funds associated to the issue.
         uint total;
 
-        // The address that created the campaign. Mainly used to check if a campaign
-        // for a selected issue is already present in the `campaigns` mappings.
+        // The address that created the campaign. Mainly used to check if a
+        // campaign for a selected issue is already present in the `campaigns`
+        // mappings.
         address createdBy;
 
         // A mapping between funders' addresses and their fund amount.
+        //
         // By default funds amounts are zeroes.
+        //
         // TODO: rename to "amounts"?
         mapping(address => uint) funds;
 
-        // A mapping between resolution proposers addresses and resolution ids.
-        // A proposed resolution id
-        // TODO: rename to "proposed resolutions"?
-        mapping(address => bytes32) resolutions;
+        // A mapping between author addresses and patches ids, that are
+        // references to commit SHAs.
+        mapping(address => bytes32) patches;
 
         // TODO: write doc
-        // TODO: rename to preRewardPeriodExpiresAt
+        uint preRewardPeriodExpiresAt;
+
+        // TODO: write doc
         uint rewardPeriodExpiresAt;
 
-        // TODO: write doc
-        // TODO: rename to rewardPeriodExpiresAt
-        uint executePeriodExpiresAt;
-
-        // The address of the entity that proposed a resolution that has been
+        // The address of the entity that submitted a patch that has been
         // verified.
         //
-        // Note: if this address is different from the default 0x0000000 address,
-        // then a proposed resolution has been verified and `resolutor` is the
-        // resolution author's address.
-        // TODO: rename to "resolvedBy" (?)
-        address resolutor;
+        // Note: if this address is different from the default 0x0000000
+        // address, then a submitted patch has been verified and `resolvedBy` is
+        // the patch author's address.
+        address resolvedBy;
     }
 
     // A mapping between issues (their ids) and campaigns.
@@ -65,19 +59,20 @@ contract Issuehunter {
 
     event CampaignCreated(bytes32 indexed issueId, address creator, uint timestamp);
     event CampaignFunded(bytes32 indexed issueId, address funder, uint timestamp, uint amount);
-    event ResolutionProposed(bytes32 indexed issueId, address resolutor, bytes32 commitSHA);
-    event ResolutionVerified(bytes32 indexed issueId, address resolutor, bytes32 commitSHA);
+    event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
+    event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
-    event WithdrawFunds(bytes32 indexed issueId, address resolutor);
+    event WithdrawFunds(bytes32 indexed issueId, address resolvedBy);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
 
-    /// Create a new Issuehunter with message's sender as the issue manager.
+    /// Create a new contract instance and set message sender as the patch
+    //  verifier.
     function Issuehunter() {
-        issueManager = msg.sender;
-        // The default reward period is one day
-        defaultRewardPeriod = 86400;
+        patchVerifier = msg.sender;
+        // The default pre-reward period is one day
+        preRewardPeriod = 86400;
         // The default execution period is one week.
-        defaultExecutePeriod = 604800;
+        rewardPeriod = 604800;
     }
 
     /// Creates a new campaign.
@@ -87,12 +82,12 @@ contract Issuehunter {
         require(campaigns[issueId].createdBy == 0);
 
         campaigns[issueId] = Campaign({
-            executed: false,
+            rewarded: false,
             total: 0,
             createdBy: msg.sender,
+            preRewardPeriodExpiresAt: 0,
             rewardPeriodExpiresAt: 0,
-            executePeriodExpiresAt: 0,
-            resolutor: 0
+            resolvedBy: 0
         });
 
         CampaignCreated(issueId, msg.sender, now);
@@ -107,85 +102,80 @@ contract Issuehunter {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
-        // TODO: require that a campaign hasn't any verified resolution
+        // TODO: require that a campaign hasn't any verified patch
 
         // Add funds to the list, and update campaign's funds total amount
         campaigns[issueId].funds[msg.sender] += msg.value;
         campaigns[issueId].total += msg.value;
 
-        CampaignFunded(
-            issueId,
-            msg.sender,
-            now,
-            msg.value
-        );
+        CampaignFunded(issueId, msg.sender, now, msg.value);
     }
 
-    // Submit a new resolution proposal.
+    // Submit a new patch.
     //
-    // TODO: the submitter must pay a fee to let the issue manager send the
-    // transaction that verifies the proposed resolution.
-    function submitResolution(bytes32 issueId, bytes32 commitSHA) {
+    // TODO: the sender must pay a fee that will be used by the patch verifier
+    // to send the transaction to verify the patch.
+    function submitPatch(bytes32 issueId, bytes32 ref) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
-        // Fail if sender already submitted the same resolution
-        require(campaigns[issueId].resolutions[msg.sender] == 0 || campaigns[issueId].resolutions[msg.sender] != commitSHA);
+        // Fail if sender already submitted the same patch
+        require(campaigns[issueId].patches[msg.sender] == 0 || campaigns[issueId].patches[msg.sender] != ref);
 
-        // TODO: require that a campaign hasn't any verified resolution
+        // TODO: require that a campaign hasn't any verified patch
 
-        campaigns[issueId].resolutions[msg.sender] = commitSHA;
+        campaigns[issueId].patches[msg.sender] = ref;
 
-        ResolutionProposed(issueId, msg.sender, commitSHA);
+        PatchSubmitted(issueId, msg.sender, ref);
     }
 
-    // Verify a proposed resolution.
+    // Verify a patch.
     //
-    // Only the issue manager can invoke this function.
+    // Only the patch verifier can invoke this function.
     //
-    // The issue manager must verify that:
+    // The patch verifier must verify that:
     //
-    // 1. the proposed resolution is a real solution for the selected issue, for
-    //    instance by checking that the project's master branch includes the
-    //    commit SHA that has been proposed as a resolution
-    // 2. the resolution submitter address is included in one of the commit
-    //    messages in the branch that contains the resolution
+    // 1. the patch is a real solution for the selected issue, for instance by
+    //    checking that the project's master branch includes the commit SHA that
+    //    has been submitted
+    // 2. the patch author address is included in the commit message
     //
-    // The function will throw an exception if the resolutor and its associated
-    // patch commit SHA don't match to the function arguments. This will prevent
-    // concurrent updates of a patch submitted by the same author.
-    function verifyResolution(bytes32 issueId, address resolutor, bytes32 commitSHA) {
-        // Only issue manager is allowed to call this function
-        require(msg.sender == issueManager);
+    // The function will throw an exception if the patch author's address and
+    // the associated patch's ref don't match with the function arguments. This
+    // will prevent concurrent updates of a patch submitted by the same author.
+    function verifyPatch(bytes32 issueId, address author, bytes32 ref) {
+        // Only patch verifier is allowed to call this function
+        require(msg.sender == patchVerifier);
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
-        // Fail if resolutor didn't submit the selected patch
-        require(campaigns[issueId].resolutions[resolutor] == commitSHA);
-        // Fail if a resolution has been already verified
-        require(campaigns[issueId].resolutor == 0);
+        // Fail if author didn't submit the selected patch
+        require(campaigns[issueId].patches[author] == ref);
+        // Fail if a patche has been already verified
+        require(campaigns[issueId].resolvedBy == 0);
 
-        campaigns[issueId].resolutor = resolutor;
-        campaigns[issueId].rewardPeriodExpiresAt = now + defaultRewardPeriod;
-        campaigns[issueId].executePeriodExpiresAt = campaigns[issueId].rewardPeriodExpiresAt + defaultExecutePeriod;
+        campaigns[issueId].resolvedBy = author;
+        campaigns[issueId].preRewardPeriodExpiresAt = now + preRewardPeriod;
+        campaigns[issueId].rewardPeriodExpiresAt = campaigns[issueId].preRewardPeriodExpiresAt + rewardPeriod;
 
-        ResolutionVerified(issueId, resolutor, campaigns[issueId].resolutions[resolutor]);
+        PatchVerified(issueId, author, campaigns[issueId].patches[author]);
     }
 
     // Campaign funders can withdraw their fund from a campaign under certain
     // conditions.
     //
-    // They can't withdraw their funds after `defaultRewardPeriod` seconds have
-    // passed from the time when a proposed resolution has been verified.
+    // They can't withdraw their funds after `preRewardPeriod` seconds have
+    // passed from the time when a patch has been verified.
     //
-    // Withdrawing campaign funds after a proposed resolution has been verified
-    // will incur in a fee. The fee will be added to funds from the null address
-    // (0x0000000) and it will be included in the campaign's total reward amount.
+    // Withdrawing campaign funds after a submitted patch has been verified will
+    // incur in a fee. The fee will be added to funds from the null address
+    // (0x0000000) and it will be included in the campaign's total reward
+    // amount.
     function rollbackFunds(bytes32 issueId) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
-        // Fail if there's no verified resolution
-        require(campaigns[issueId].resolutor != 0);
+        // Fail if the issue hasn't been resolved yet
+        require(campaigns[issueId].resolvedBy != 0);
         // Fail if reward period has expired
-        require(now <= campaigns[issueId].rewardPeriodExpiresAt);
+        require(now <= campaigns[issueId].preRewardPeriodExpiresAt);
 
         uint amount = _rollbackFunds(campaigns[issueId], msg.sender);
 
@@ -195,69 +185,77 @@ contract Issuehunter {
         RollbackFunds(issueId, msg.sender, amount);
     }
 
-    // The submitter of the verified resolution for the campaign can call this
+    // The submitter of the verified patch for the campaign can call this
     // function under certain conditions to withdraw the campaign's total amount
     // as a reward for his/her work.
     //
-    // Campaign funds can't be withdrawn:
+    // Campaign funds can be withdrawn if:
     //
-    // * before `rewardPeriodExpiresAt` has expired
-    // * after `executePeriodExpiresAt` has expired
-    // * the resolution has been verified and the address requesting the
-    //   transaction is the one stored as the issue's resolutor
-    function withdrawFunds(bytes32 issueId) {
+    // * `preRewardPeriodExpiresAt` has passed
+    // * `rewardPeriodExpiresAt` hasn't passed
+    // * the patch has been verified and the address requesting the transaction
+    //   is the one stored as the verified patch's author (`resolvedBy`)
+    function withdrawReward(bytes32 issueId) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if all funds have been rolled back
         require(campaigns[issueId].total > 0);
-        // Funds can be withdrawed only once
-        require(!campaigns[issueId].executed);
-        // Only resolutor is allowed to withdraw funds
-        require(msg.sender == campaigns[issueId].resolutor);
+        // A campaign can be rewarded only once
+        require(!campaigns[issueId].rewarded);
+        // Only the verified patch's author is allowed to withdraw the
+        // campaign's reward
+        require(msg.sender == campaigns[issueId].resolvedBy);
         // Withdraw can happen only within the execution period, that is after
         // reward period has expired and before execution period expires
-        require(now > campaigns[issueId].rewardPeriodExpiresAt);
-        // TODO: remove this check (?), why prevent a resolutor to withdraw a reward
-        // even after the `executePeriodExpiresAt` has passed?
-        require(now <= campaigns[issueId].executePeriodExpiresAt);
+        require(now > campaigns[issueId].preRewardPeriodExpiresAt);
+        // TODO: remove this check (?), why prevent a verified patch's author to
+        // withdraw a reward even after the `rewardPeriodExpiresAt` has passed?
+        require(now <= campaigns[issueId].rewardPeriodExpiresAt);
 
-        campaigns[issueId].executed = true;
+        campaigns[issueId].rewarded = true;
         msg.sender.transfer(campaigns[issueId].total);
         WithdrawFunds(issueId, msg.sender);
 
         // TODO: archive campaign (?)
-        // If we archive campaigns we can create new campaigns for the same issue,
-        // but at the same time there can always be at most one active campaign
-        // per issue id.
+        //
+        // If we archive campaigns we can create new campaigns for the same
+        // issue, but at the same time there can always be at most one active
+        // campaign per issue id.
     }
 
     // TODO: create a new "archive" function to archive a campaign (?)
-    // This function would come in handy if the resolutor doesn't withdraw the
-    // reward (maybe because archiving an issue is more expensive then the
-    // reward?), but someone else would like to start a new campaign.
+    //
+    // This function would come in handy if the verified patch's author doesn't
+    // withdraw the reward (maybe because archiving an issue is more expensive
+    // then the reward?), but someone else would like to start a new campaign.
+    //
     // What should we do about the campaign funds in that case?
+    //
     // Whould they go in a global fund?
+    //
     // Maybe "createCampaign" could check if there is any archived function that
     // has an unclaimed reward and add it by default to the funds associated to
     // the 0x0000000 address?
+    //
     // What if instead of "archive", "createCampaign" just does this?
 
-    // Campaign backers have one last chance to withdraw their funds under certain
-    // conditions.
+    // Campaign backers have one last chance to withdraw their funds under
+    // certain conditions.
     //
-    // Any backer of the campaign is able to withdraw his/her fund:
+    // Any backer of the campaign is able to withdraw his/her fund if:
     //
-    // * if a resolutor doesn't withdraw a campaign reward before
-    //   `executePeriodExpiresAt` has passed
-    // * if the resolutor didn't withdraw their reward
+    // * `rewardPeriodExpiresAt` has passed
+    // * the verified patch's author didn't withdraw the campaign reward yet
+    // * the backer didn't withdraw their funds yet
     function withdrawSpareFunds(bytes32 issueId) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
-        // Funders can't withdraw spare funds until a resolution has been
-        // verified and the contract has been executed
-        require(campaigns[issueId].resolutor != 0 && !campaigns[issueId].executed);
-        // Funders can withdraw spare funds only after execute period has expired
-        require(now > campaigns[issueId].executePeriodExpiresAt);
+        // Funders can't withdraw spare funds if a patch has been verified and
+        // the campaign has been rewarded
+        require(campaigns[issueId].resolvedBy != 0 && !campaigns[issueId].rewarded);
+        // Funders can withdraw spare funds only after execute period has
+        // expired
+        require(now > campaigns[issueId].rewardPeriodExpiresAt);
 
         uint amount = _rollbackFunds(campaigns[issueId], msg.sender);
 
@@ -276,9 +274,9 @@ contract Issuehunter {
         return amount;
     }
 
-    //////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
     // Getters
-    //////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
     function campaignFunds(bytes32 issueId, address funder) returns (uint amount) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
@@ -286,10 +284,10 @@ contract Issuehunter {
         return campaigns[issueId].funds[funder];
     }
 
-    function campaignResolutions(bytes32 issueId, address resolutor) returns (bytes32 commitSHA) {
+    function campaignResolutions(bytes32 issueId, address author) returns (bytes32 ref) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
-        return campaigns[issueId].resolutions[resolutor];
+        return campaigns[issueId].patches[author];
     }
 }

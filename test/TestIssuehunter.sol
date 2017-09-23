@@ -10,13 +10,13 @@ contract TestIssuehunter {
     function testInitialIssueManagerUsingDeployedContract() {
         Issuehunter issuehunter = Issuehunter(DeployedAddresses.Issuehunter());
 
-        Assert.equal(issuehunter.issueManager(), tx.origin, "Contract creator should be the issue manager");
+        Assert.equal(issuehunter.patchVerifier(), tx.origin, "Contract creator should be the patch verifier");
     }
 
     function testInitialIssueManagerWithNewIssuehunter() {
         Issuehunter issuehunter = new Issuehunter();
 
-        Assert.equal(issuehunter.issueManager(), tx.origin, "Contract creator should be the issue manager");
+        Assert.equal(issuehunter.patchVerifier(), tx.origin, "Contract creator should be the patch verifier");
     }
 
 }
