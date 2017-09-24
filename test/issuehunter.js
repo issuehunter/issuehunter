@@ -334,21 +334,42 @@ contract('Issuehunter', function (accounts) {
       const issueId = 'new-campaign-4'
       const ref1 = 'sha-1'
       const ref2 = 'sha-2'
+      const verifier = accounts[0]
+
+      const verifierInitialBalance = addressBalance(verifier)
 
       return newCampaign(issueId, accounts[1]).then(function () {
         // Test a `submitPatch` transaction from account 2
         return submitPatch(issueId, ref1, accounts[1])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
+        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+      }).then(function ([minFee, initialAmount, currentAmount]) {
+        // Note: compare account balance difference with a lower precision than
+        // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
+        // TODO: make this check stricter.
+        assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber(), 'Fee amount has been transferred to verifier\'s account')
         // Test a `submitPatch` transaction for the same commit SHA from a
         // different account
         return submitPatch(issueId, ref1, accounts[2])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
+        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+      }).then(function ([minFee, initialAmount, currentAmount]) {
+        // Note: compare account balance difference with a lower precision than
+        // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
+        // TODO: make this check stricter.
+        assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber() * 2, 'Fee amount has been transferred to verifier\'s account')
         // Test a `submitPatch` transaction for a new commit SHA from account 2
         return submitPatch(issueId, ref2, accounts[1])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref2, 'Patch has been stored')
+        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+      }).then(function ([minFee, initialAmount, currentAmount]) {
+        // Note: compare account balance difference with a lower precision than
+        // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
+        // TODO: make this check stricter.
+        assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber() * 3, 'Fee amount has been transferred to verifier\'s account')
       })
     })
 
