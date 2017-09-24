@@ -392,6 +392,21 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
+    context('transaction fee is lower than required verification fee', function () {
+      const issueId = newCampaignId()
+      const ref = 'sha'
+
+      it('should fail to submit the same patch twice', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return minVerificationFee
+        }).then(function (minFee) {
+          return submitPatchWithFee(issueId, ref, minFee.sub(1), accounts[1])
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
       const ref = 'sha'
