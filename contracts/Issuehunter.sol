@@ -84,7 +84,7 @@ contract Issuehunter is Mortal {
     event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
-    event WithdrawFunds(bytes32 indexed issueId, address resolvedBy);
+    event WithdrawReward(bytes32 indexed issueId, address resolvedBy, uint amount);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
 
     /// Create a new contract instance and set message sender as the default
@@ -270,7 +270,8 @@ contract Issuehunter is Mortal {
         // Set campaign status as "rewarded"
         campaigns[issueId].rewarded = true;
         msg.sender.transfer(campaigns[issueId].total);
-        WithdrawFunds(issueId, msg.sender);
+
+        WithdrawReward(issueId, msg.sender, campaigns[issueId].total);
 
         // TODO: archive campaign (?)
         //

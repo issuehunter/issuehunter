@@ -179,7 +179,7 @@ contract('Issuehunter', function (accounts) {
     return issuehunter.then(function (instance) {
       return instance.withdrawReward(issueId, { from: account })
     }).then(function (result) {
-      assert(findEvent(result, 'WithdrawFunds'), 'A new `WithdrawFunds` event has been triggered')
+      assert(findEvent(result, 'WithdrawReward'), 'A new `WithdrawReward` event has been triggered')
       return issuehunter
     }).then(function (instance) {
       return instance.campaigns.call(issueId)
