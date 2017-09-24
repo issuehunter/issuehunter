@@ -836,7 +836,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('right before the execution period end', function () {
+    context('right before the reward period end', function () {
       const issueId = 'new-campaign-19'
       const ref = 'sha'
       const funder = accounts[1]
@@ -851,7 +851,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          // The execution period end is one week after the pre-reward period
+          // The reward period end is one week after the pre-reward period
           // ends, that is 7 + 1 days from the moment the patch has been
           // verified
           return increaseTime(60 * 60 * 24 * 8)
@@ -873,7 +873,7 @@ contract('Issuehunter', function (accounts) {
 
     // TODO: I think this is not fair. The verified patch's author should always
     // be able to withdraw their reward.
-    context('past the execution period', function () {
+    context('past the reward period', function () {
       const issueId = 'new-campaign-20'
       const ref = 'sha'
       const funder = accounts[1]
@@ -938,9 +938,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
-        // The execution period end is one week after the pre-reward period
+        // The reward period end is one week after the pre-reward period
         // ends, that is 7 + 1 days from the moment the patch has been verified
-        // Funders are allowed to withdraw spare funds right after the execution
+        // Funders are allowed to withdraw spare funds right after the reward
         // period is expired
         return increaseTime(60 * 60 * 24 * 8 + 1)
       }).then(function () {
@@ -1059,7 +1059,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('right before the execution period expiration', function () {
+    context('right before the reward period expiration', function () {
       const issueId = 'new-campaign-25'
       const ref = 'sha'
       const funder = accounts[1]
