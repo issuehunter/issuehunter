@@ -69,6 +69,8 @@ const addressBalance = Promise.denodeify(function (address, callback) {
   web3.eth.getBalance(address, web3.eth.defaultBlock, callback)
 })
 
+const gasPrice = Promise.denodeify(web3.eth.getGasPrice)
+
 const newCampaignId = (function () {
   var counter = 200
   return function () {
@@ -80,6 +82,14 @@ const newCampaignId = (function () {
 contract('Issuehunter', function (accounts) {
   const patchVerifier = accounts[0]
   const issuehunter = Issuehunter.deployed()
+
+  const verifyPatchEstimatedGas = issuehunter.then(function (instance) {
+    return instance.verifyPatchEstimatedGas.call()
+  })
+
+  const minVerificationFee = Promise.all([gasPrice(), verifyPatchEstimatedGas]).then(function ([gprice, estGas]) {
+    return gprice.mul(estGas).mul(2)
+  })
 
   const newCampaign = function (issueId, account) {
     return issuehunter.then(function (instance) {
@@ -114,14 +124,20 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const submitPatch = function (issueId, ref, account) {
-    return issuehunter.then(function (instance) {
-      return instance.submitPatch(issueId, ref, { from: account })
+  const submitPatchWithFee = function (issueId, ref, value, account) {
+    return Promise.all([issuehunter, gasPrice()]).then(function ([instance, gprice]) {
+      return instance.submitPatch(issueId, ref, { from: account, value: value, gasPrice: gprice })
     }).then(function (result) {
       assert(findEvent(result, 'PatchSubmitted'), 'A new `PatchSubmitted` event has been triggered')
       return issuehunter
     }).then(function (instance) {
       return instance.campaignResolutions.call(issueId, account)
+    })
+  }
+
+  const submitPatch = function (issueId, ref, account) {
+    return minVerificationFee.then(function (minFee) {
+      return submitPatchWithFee(issueId, ref, minFee, account)
     })
   }
 
@@ -360,8 +376,8 @@ contract('Issuehunter', function (accounts) {
       const ref = 'sha'
 
       it('should fail to submit a patch', function () {
-        const finalState = issuehunter.then(function (instance) {
-          return instance.submitPatch(issueId, ref, { from: accounts[1] })
+        const finalState = Promise.all([issuehunter, minVerificationFee]).then(function ([instance, minFee]) {
+          return instance.submitPatch(issueId, ref, { from: accounts[1], value: minFee })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
