@@ -91,6 +91,18 @@ contract('Issuehunter', function (accounts) {
     return gprice.mul(estGas).mul(2)
   })
 
+  const defaultTipPerMille = issuehunter.then(function (instance) {
+    return instance.defaultTipPerMille.call()
+  })
+
+  const minTipPerMille = issuehunter.then(function (instance) {
+    return instance.minTipPerMille.call()
+  })
+
+  const maxTipPerMille = issuehunter.then(function (instance) {
+    return instance.maxTipPerMille.call()
+  })
+
   const newCampaign = function (issueId, account) {
     return issuehunter.then(function (instance) {
       return instance.createCampaign(issueId, { from: account })
@@ -102,9 +114,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const newCampaignWithVerifier = function (issueId, patchVerifier, account) {
+  const newCampaignExtended = function (issueId, patchVerifier, tipPerMille, account) {
     return issuehunter.then(function (instance) {
-      return instance.createCampaignWithVerifier(issueId, patchVerifier, { from: account })
+      return instance.createCampaignExtended(issueId, patchVerifier, tipPerMille, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'CampaignCreated'), 'A new `CampaignCreated` event has been triggered')
       return issuehunter
@@ -247,12 +259,14 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
-  describe('createCampaignWithVerifier', function () {
+  describe('createCampaignExtended', function () {
     it('should create a new crowdfunding campaign with a custom patch verifier', function () {
       const issueId = newCampaignId()
       const patchVerifier = accounts[3]
 
-      return newCampaignWithVerifier(issueId, patchVerifier, accounts[1]).then(function (campaign) {
+      return defaultTipPerMille.then(function (tipPerMille) {
+        return newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1])
+      }).then(function (campaign) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
         assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
@@ -263,15 +277,92 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
+    context('tip value', function () {
+      it('should create a new crowdfunding campaign with a custom tip value', function () {
+        const issueId = newCampaignId()
+        const patchVerifier = accounts[3]
+        const randomTipPerMille = Promise.all([minTipPerMille, maxTipPerMille]).then(function ([min, max]) {
+          // Return a random integer between min inclusive and max inclusive
+          // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random
+          return Math.floor(Math.random() * (max.toNumber() + 1 - min.toNumber())) + min.toNumber()
+        })
+
+        return randomTipPerMille.then(function (tipPerMille) {
+          return Promise.all([
+            newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1]),
+            randomTipPerMille
+          ])
+        }).then(function ([campaign, tipPerMille]) {
+          assert.equal(campaign[7].toNumber(), tipPerMille, 'The custom tip per mille should be the new campaign\'s tip value')
+        })
+      })
+
+      it('should allow a custom tip value that is equal to minTipPerMille', function () {
+        const issueId = newCampaignId()
+        const patchVerifier = accounts[3]
+
+        return minTipPerMille.then(function (minTip) {
+          return Promise.all([
+            newCampaignExtended(issueId, patchVerifier, minTip, accounts[1]),
+            minTipPerMille
+          ])
+        }).then(function ([campaign, minTip]) {
+          assert.equal(campaign[7].toNumber(), minTip, 'The custom tip per mille should be the new campaign\'s tip value')
+        })
+      })
+
+      it('should allow a custom tip value that is equal to maxTipPerMille', function () {
+        const issueId = newCampaignId()
+        const patchVerifier = accounts[3]
+
+        return maxTipPerMille.then(function (maxTip) {
+          return Promise.all([
+            newCampaignExtended(issueId, patchVerifier, maxTip, accounts[1]),
+            maxTipPerMille
+          ])
+        }).then(function ([campaign, maxTip]) {
+          assert.equal(campaign[7].toNumber(), maxTip, 'The custom tip per mille should be the new campaign\'s tip value')
+        })
+      })
+
+      context('a tip value that is too low', function () {
+        const issueId = newCampaignId()
+        const patchVerifier = accounts[3]
+
+        it('should fail to create a new campaign', function () {
+          const finalState = minTipPerMille.then(function (minTip) {
+            return newCampaignExtended(issueId, patchVerifier, minTip.toNumber() - 1, accounts[1])
+          })
+
+          return assertContractException(finalState, 'An exception has been thrown')
+        })
+      })
+
+      context('a tip value that is too high', function () {
+        const issueId = newCampaignId()
+        const patchVerifier = accounts[3]
+
+        it('should fail to create a new campaign', function () {
+          const finalState = maxTipPerMille.then(function (maxTip) {
+            return newCampaignExtended(issueId, patchVerifier, maxTip.toNumber() + 1, accounts[1])
+          })
+
+          return assertContractException(finalState, 'An exception has been thrown')
+        })
+      })
+    })
+
     context('a campaign is already present', function () {
       const issueId = newCampaignId()
       const patchVerifier = accounts[3]
 
       it('should fail to create a new campaign', function () {
-        const finalState = newCampaignWithVerifier(issueId, patchVerifier, accounts[1]).then(function () {
-          return issuehunter
-        }).then(function (instance) {
-          return instance.createCampaignWithVerifier(issueId, patchVerifier, { from: accounts[1] })
+        const finalState = defaultTipPerMille.then(function (tipPerMille) {
+          return newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1])
+        }).then(function () {
+          return Promise.all([issuehunter, defaultTipPerMille])
+        }).then(function ([instance, tipPerMille]) {
+          return instance.createCampaignExtended(issueId, patchVerifier, tipPerMille, { from: accounts[1] })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')

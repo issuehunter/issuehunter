@@ -21,6 +21,15 @@ contract Issuehunter is Mortal {
     // calculate the patch verifier fee that should applied to submit patches.
     uint public constant verifyPatchEstimatedGas = 65511;
 
+    // Default tip per mille.
+    uint public constant defaultTipPerMille = 50;
+
+    // 1% is the minimum tip.
+    uint public constant minTipPerMille = 10;
+
+    // 20% is the maximum tip.
+    uint public constant maxTipPerMille = 200;
+
     // A crowdfunding campaign.
     struct Campaign {
         // A flag that is true if a verified patch author's has been rewarded.
@@ -61,6 +70,9 @@ contract Issuehunter is Mortal {
 
         // The address of the entity that will verify proposed patches.
         address patchVerifier;
+
+        // The campaign fund tip per mille for the platform.
+        uint tipPerMille;
     }
 
     // A mapping between issues (their ids) and campaigns.
@@ -87,16 +99,20 @@ contract Issuehunter is Mortal {
     }
 
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
-    //  address to verify patches.
+    //  address to verify patches, and the `defaultTipPerMille` as the per mille
+    //  funds tip value.
     function createCampaign(bytes32 issueId) public {
-        createCampaignWithVerifier(issueId, defaultPatchVerifier);
+        createCampaignExtended(issueId, defaultPatchVerifier, defaultTipPerMille);
     }
 
     /// Creates a new campaign.
-    function createCampaignWithVerifier(bytes32 issueId, address verifier) public {
+    function createCampaignExtended(bytes32 issueId, address verifier, uint _tipPerMille) public {
         // If a campaign for the selected issue exists already throws an
         // exception.
         require(campaigns[issueId].createdBy == 0);
+        // Requires that tip is valid, that is between `minTipPerMille` and
+        // `maxTipPerMille`
+        require(_tipPerMille >= minTipPerMille && _tipPerMille <= maxTipPerMille);
 
         // TODO: verify that `verifier` is a valid address
 
@@ -107,7 +123,8 @@ contract Issuehunter is Mortal {
             preRewardPeriodExpiresAt: 0,
             rewardPeriodExpiresAt: 0,
             resolvedBy: 0,
-            patchVerifier: verifier
+            patchVerifier: verifier,
+            tipPerMille: _tipPerMille
         });
 
         CampaignCreated(issueId, msg.sender, now);
