@@ -69,6 +69,8 @@ const addressBalance = Promise.denodeify(function (address, callback) {
   web3.eth.getBalance(address, web3.eth.defaultBlock, callback)
 })
 
+const gasPrice = Promise.denodeify(web3.eth.getGasPrice)
+
 const newCampaignId = (function () {
   var counter = 200
   return function () {
@@ -80,6 +82,14 @@ const newCampaignId = (function () {
 contract('Issuehunter', function (accounts) {
   const patchVerifier = accounts[0]
   const issuehunter = Issuehunter.deployed()
+
+  const verifyPatchEstimatedGas = issuehunter.then(function (instance) {
+    return instance.verifyPatchEstimatedGas.call()
+  })
+
+  const minVerificationFee = Promise.all([gasPrice(), verifyPatchEstimatedGas]).then(function ([gprice, estGas]) {
+    return gprice.mul(estGas).mul(2)
+  })
 
   const newCampaign = function (issueId, account) {
     return issuehunter.then(function (instance) {
@@ -114,14 +124,20 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const submitPatch = function (issueId, ref, account) {
-    return issuehunter.then(function (instance) {
-      return instance.submitPatch(issueId, ref, { from: account })
+  const submitPatchWithFee = function (issueId, ref, value, account) {
+    return Promise.all([issuehunter, gasPrice()]).then(function ([instance, gprice]) {
+      return instance.submitPatch(issueId, ref, { from: account, value: value, gasPrice: gprice })
     }).then(function (result) {
       assert(findEvent(result, 'PatchSubmitted'), 'A new `PatchSubmitted` event has been triggered')
       return issuehunter
     }).then(function (instance) {
       return instance.campaignResolutions.call(issueId, account)
+    })
+  }
+
+  const submitPatch = function (issueId, ref, account) {
+    return minVerificationFee.then(function (minFee) {
+      return submitPatchWithFee(issueId, ref, minFee, account)
     })
   }
 
@@ -318,21 +334,42 @@ contract('Issuehunter', function (accounts) {
       const issueId = 'new-campaign-4'
       const ref1 = 'sha-1'
       const ref2 = 'sha-2'
+      const verifier = accounts[0]
+
+      const verifierInitialBalance = addressBalance(verifier)
 
       return newCampaign(issueId, accounts[1]).then(function () {
         // Test a `submitPatch` transaction from account 2
         return submitPatch(issueId, ref1, accounts[1])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
+        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+      }).then(function ([minFee, initialAmount, currentAmount]) {
+        // Note: compare account balance difference with a lower precision than
+        // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
+        // TODO: make this check stricter.
+        assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber(), 'Fee amount has been transferred to verifier\'s account')
         // Test a `submitPatch` transaction for the same commit SHA from a
         // different account
         return submitPatch(issueId, ref1, accounts[2])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
+        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+      }).then(function ([minFee, initialAmount, currentAmount]) {
+        // Note: compare account balance difference with a lower precision than
+        // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
+        // TODO: make this check stricter.
+        assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber() * 2, 'Fee amount has been transferred to verifier\'s account')
         // Test a `submitPatch` transaction for a new commit SHA from account 2
         return submitPatch(issueId, ref2, accounts[1])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref2, 'Patch has been stored')
+        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+      }).then(function ([minFee, initialAmount, currentAmount]) {
+        // Note: compare account balance difference with a lower precision than
+        // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
+        // TODO: make this check stricter.
+        assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber() * 3, 'Fee amount has been transferred to verifier\'s account')
       })
     })
 
@@ -355,13 +392,28 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
+    context('transaction fee is lower than required verification fee', function () {
+      const issueId = newCampaignId()
+      const ref = 'sha'
+
+      it('should fail to submit the same patch twice', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return minVerificationFee
+        }).then(function (minFee) {
+          return submitPatchWithFee(issueId, ref, minFee.sub(1), accounts[1])
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
       const ref = 'sha'
 
       it('should fail to submit a patch', function () {
-        const finalState = issuehunter.then(function (instance) {
-          return instance.submitPatch(issueId, ref, { from: accounts[1] })
+        const finalState = Promise.all([issuehunter, minVerificationFee]).then(function ([instance, minFee]) {
+          return instance.submitPatch(issueId, ref, { from: accounts[1], value: minFee })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -642,7 +694,7 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('withdrawReward', function () {
-    it('should withdraw the whole campaing\'s amount as a reward', function () {
+    it('should withdraw the whole campaign\'s amount as a reward', function () {
       const issueId = 'new-campaign-15'
       const ref = 'sha'
       const funder1 = accounts[1]
@@ -784,14 +836,14 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('right before the execution period end', function () {
+    context('right before the reward period end', function () {
       const issueId = 'new-campaign-19'
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
       const author = accounts[1]
 
-      it('successfully withdraws the whole campaing\'s amount as a reward', function () {
+      it('successfully withdraws the whole campaign\'s amount as a reward', function () {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
@@ -799,7 +851,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          // The execution period end is one week after the pre-reward period
+          // The reward period end is one week after the pre-reward period
           // ends, that is 7 + 1 days from the moment the patch has been
           // verified
           return increaseTime(60 * 60 * 24 * 8)
@@ -821,7 +873,7 @@ contract('Issuehunter', function (accounts) {
 
     // TODO: I think this is not fair. The verified patch's author should always
     // be able to withdraw their reward.
-    context('past the execution period', function () {
+    context('past the reward period', function () {
       const issueId = 'new-campaign-20'
       const ref = 'sha'
       const funder = accounts[1]
@@ -866,7 +918,7 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('withdrawSpareFunds', function () {
-    it('should withdraw spare funds in the campaing', function () {
+    it('should withdraw spare funds in the campaign', function () {
       const issueId = 'new-campaign-21'
       const ref = 'sha'
       const funder1 = accounts[1]
@@ -886,9 +938,9 @@ contract('Issuehunter', function (accounts) {
       }).then(function () {
         return verifyPatch(issueId, author, ref, patchVerifier)
       }).then(function () {
-        // The execution period end is one week after the pre-reward period
+        // The reward period end is one week after the pre-reward period
         // ends, that is 7 + 1 days from the moment the patch has been verified
-        // Funders are allowed to withdraw spare funds right after the execution
+        // Funders are allowed to withdraw spare funds right after the reward
         // period is expired
         return increaseTime(60 * 60 * 24 * 8 + 1)
       }).then(function () {
@@ -1007,7 +1059,7 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('right before the execution period expiration', function () {
+    context('right before the reward period expiration', function () {
       const issueId = 'new-campaign-25'
       const ref = 'sha'
       const funder = accounts[1]

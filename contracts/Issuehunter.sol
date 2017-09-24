@@ -16,6 +16,10 @@ contract Issuehunter {
     // verified patch's author can't withdraw campaign's reward anymore.
     uint public rewardPeriod;
 
+    // Estimated gas to execute `verifyPatch`. This value will be used to
+    // calculate the patch verifier fee that should applied to submit patches.
+    uint public constant verifyPatchEstimatedGas = 65511;
+
     // A crowdfunding campaign.
     struct Campaign {
         // A flag that is true if a verified patch author's has been rewarded.
@@ -91,6 +95,8 @@ contract Issuehunter {
         // exception.
         require(campaigns[issueId].createdBy == 0);
 
+        // TODO: verify that `verifier` is a valid address
+
         campaigns[issueId] = Campaign({
             rewarded: false,
             total: 0,
@@ -129,15 +135,23 @@ contract Issuehunter {
 
     // Submit a new patch.
     //
-    // TODO: the sender must pay a fee that will be used by the patch verifier
-    // to send the transaction to verify the patch.
-    function submitPatch(bytes32 issueId, bytes32 ref) public {
+    // This method is defined as payable because the sender must pay a patch
+    // verification fee that will be used by the patch verifier, after the patch
+    // has been verified, to inform the contract of the successful verification.
+    function submitPatch(bytes32 issueId, bytes32 ref) public payable {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if sender already submitted the same patch
         require(campaigns[issueId].patches[msg.sender] == 0 || campaigns[issueId].patches[msg.sender] != ref);
 
         // TODO: require that a campaign hasn't any verified patch
+
+        // Calculate fee amount based on the current transaction's gas price
+        uint feeAmount = _patchVerificationFee(tx.gasprice);
+        // Fail if the transaction value is less than the verification fee
+        require(msg.value >= feeAmount);
+        // Pay the patch verification fee
+        campaigns[issueId].patchVerifier.transfer(msg.value);
 
         campaigns[issueId].patches[msg.sender] = ref;
 
@@ -290,17 +304,25 @@ contract Issuehunter {
         return amount;
     }
 
+    // The patch verification fee amount is set to twice the amount of Ether
+    // needed to send a transaction to execute the method `verifyPatch`
+    // according the gas price in input. In theory this should be more than
+    // enough for the verifier to run the transaction and to spare some gas.
+    function _patchVerificationFee(uint gasprice) internal returns (uint) {
+        return gasprice * verifyPatchEstimatedGas * 2;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Getters
     ////////////////////////////////////////////////////////////////////////////
-    function campaignFunds(bytes32 issueId, address funder) public view returns (uint amount) {
+    function campaignFunds(bytes32 issueId, address funder) public returns (uint amount) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
         return campaigns[issueId].funds[funder];
     }
 
-    function campaignResolutions(bytes32 issueId, address author) public view returns (bytes32 ref) {
+    function campaignResolutions(bytes32 issueId, address author) public returns (bytes32 ref) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
