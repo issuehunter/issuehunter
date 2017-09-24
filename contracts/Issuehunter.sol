@@ -95,6 +95,8 @@ contract Issuehunter {
         // exception.
         require(campaigns[issueId].createdBy == 0);
 
+        // TODO: verify that `verifier` is a valid address
+
         campaigns[issueId] = Campaign({
             rewarded: false,
             total: 0,
