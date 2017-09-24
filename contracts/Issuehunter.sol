@@ -107,7 +107,7 @@ contract Issuehunter is Mortal {
     }
 
     /// Creates a new campaign.
-    function createCampaignExtended(bytes32 issueId, address verifier, uint _tipPerMille) public {
+    function createCampaignExtended(bytes32 issueId, address _patchVerifier, uint _tipPerMille) public {
         // If a campaign for the selected issue exists already throws an
         // exception.
         require(campaigns[issueId].createdBy == 0);
@@ -124,7 +124,7 @@ contract Issuehunter is Mortal {
             preRewardPeriodExpiresAt: 0,
             rewardPeriodExpiresAt: 0,
             resolvedBy: 0,
-            patchVerifier: verifier,
+            patchVerifier: _patchVerifier,
             tipPerMille: _tipPerMille
         });
 
