@@ -824,13 +824,19 @@ contract('Issuehunter', function (accounts) {
         return instance.campaignFunds.call(issueId, funder2)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
-        return Promise.all([initialAuthorBalance, addressBalance(author)])
-      }).then(function ([initialAmount, currentAmount]) {
+        return Promise.all([initialAuthorBalance, addressBalance(author), defaultTipPerMille])
+      }).then(function ([initialAmount, currentAmount, tipPerMille]) {
+        withdrawableAmount = Math.floor((txValue1 + txValue2) * (1000 - tipPerMille.toNumber()) / 1000)
         // TODO: find a better way to check for a user's account balance delta
         // This is a workaround and it won't work under all conditions. It
         // partially works because transactions are in wei, but gas are some
         // orders of magnitude more expensive
-        assert.equal(currentAmount.mod(10000) - initialAmount.mod(10000), txValue1 + txValue2, 'Verified patch\'s author balance has increased by the value of the reward')
+        assert.equal(
+          currentAmount.mod(10000) - initialAmount.mod(10000),
+          withdrawableAmount,
+          'Verified patch\'s author balance has increased by the value of the ' +
+          'reward, removing the tips amount'
+        )
       })
     })
 
@@ -1048,13 +1054,21 @@ contract('Issuehunter', function (accounts) {
         return instance.campaignFunds.call(issueId, funder2)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
-        return Promise.all([funder1InitialBalance, addressBalance(funder1)])
-      }).then(function ([initialAmount, currentAmount]) {
+        return Promise.all([funder1InitialBalance, addressBalance(funder1), defaultTipPerMille])
+      }).then(function ([initialAmount, currentAmount, tipPerMille]) {
+        withdrawableAmount = Math.floor(txValue1 * (1000 - tipPerMille.toNumber()) / 1000)
+        expectedBalanceDelta = withdrawableAmount - txValue1
         // TODO: find a better way to check for a user's account balance delta
         // This is a workaround and it won't work under all conditions. It
         // partially works because transactions are in wei, but gas are some
         // orders of magnitude more expensive
-        assert.equal(currentAmount.mod(10000) - initialAmount.mod(10000), 0, 'Funder 1\'s balance hasn\'t been modified')
+        assert.equal(
+          currentAmount.mod(10000) - initialAmount.mod(10000),
+          expectedBalanceDelta,
+          'Funder 1\'s balance has been reduced by the difference between her ' +
+          'transaction value and the reciprocal of the tips amount, that is ' +
+          'the tips amount in excess'
+        )
       })
     })
 

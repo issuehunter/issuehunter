@@ -17,8 +17,13 @@ contract Issuehunter is Mortal {
     // verified patch's author can't withdraw campaign's reward anymore.
     uint public rewardPeriod;
 
+    // The current amount of tips collected by the contract.
+    uint public tipsAmount;
+
     // Estimated gas to execute `verifyPatch`. This value will be used to
     // calculate the patch verifier fee that should applied to submit patches.
+    //
+    // TODO: recalculate after fee application (!!!)
     uint public constant verifyPatchEstimatedGas = 65511;
 
     // Default tip per mille.
@@ -74,6 +79,9 @@ contract Issuehunter is Mortal {
 
         // The campaign fund tip per mille for the platform.
         uint tipPerMille;
+
+        // Campaign's tips amount.
+        uint tipsAmount;
     }
 
     // A mapping between issues (their ids) and campaigns.
@@ -97,6 +105,8 @@ contract Issuehunter is Mortal {
         // The default execution period is one week.
         // TODO: make this value a constant
         rewardPeriod = 604800;
+        // Initial tips amount.
+        tipsAmount = 0;
     }
 
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
@@ -125,7 +135,8 @@ contract Issuehunter is Mortal {
             rewardPeriodExpiresAt: 0,
             resolvedBy: 0,
             patchVerifier: _patchVerifier,
-            tipPerMille: _tipPerMille
+            tipPerMille: _tipPerMille,
+            tipsAmount: 0
         });
 
         CampaignCreated(issueId, msg.sender, now);
@@ -210,6 +221,8 @@ contract Issuehunter is Mortal {
         campaigns[issueId].resolvedBy = author;
         campaigns[issueId].preRewardPeriodExpiresAt = now + preRewardPeriod;
         campaigns[issueId].rewardPeriodExpiresAt = campaigns[issueId].preRewardPeriodExpiresAt + rewardPeriod;
+        campaigns[issueId].tipsAmount = campaigns[issueId].total - _reciprocalPerMille(campaigns[issueId].total, campaigns[issueId].tipPerMille);
+        tipsAmount += campaigns[issueId].tipsAmount;
 
         PatchVerified(issueId, author, campaigns[issueId].patches[author]);
     }
@@ -269,9 +282,12 @@ contract Issuehunter is Mortal {
 
         // Set campaign status as "rewarded"
         campaigns[issueId].rewarded = true;
-        msg.sender.transfer(campaigns[issueId].total);
 
-        WithdrawReward(issueId, msg.sender, campaigns[issueId].total);
+        // Compute remaining withdrawable amount after tips
+        uint rewardAmount = _reciprocalPerMille(campaigns[issueId].total, campaigns[issueId].tipPerMille);
+        msg.sender.transfer(rewardAmount);
+
+        WithdrawReward(issueId, msg.sender, rewardAmount);
 
         // TODO: archive campaign (?)
         //
@@ -321,11 +337,13 @@ contract Issuehunter is Mortal {
 
     // TODO: add doc...
     function _rollbackFunds(Campaign storage campaign, address funder) internal returns (uint amount) {
-        amount = campaign.funds[funder];
-        require(amount > 0);
+        uint funds = campaign.funds[funder];
+        require(funds > 0);
 
         campaign.funds[funder] = 0;
-        campaign.total -= amount;
+        campaign.total -= funds;
+        // Compute remaining withdrawable amount after tips
+        amount = _reciprocalPerMille(funds, campaign.tipPerMille);
         funder.transfer(amount);
 
         return amount;
@@ -337,6 +355,18 @@ contract Issuehunter is Mortal {
     // enough for the verifier to run the transaction and to spare some gas.
     function _patchVerificationFee(uint gasprice) internal returns (uint) {
         return gasprice * verifyPatchEstimatedGas * 2;
+    }
+
+    // Return the reciprocal of the `tipPerMille` value applied to `amount`.
+    //
+    // The reciprocal is used, instead of a tip amount, because `uint` division
+    // always truncates. This means that the amount of Ether returned by the
+    // contract will be always less than or equal to the amount after the
+    // calculation at a higher precision.
+    //
+    // TODO: review math
+    function _reciprocalPerMille(uint amount, uint tipPerMille) internal returns (uint) {
+        return amount * (1000 - tipPerMille) / 1000;
     }
 
     ////////////////////////////////////////////////////////////////////////////
