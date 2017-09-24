@@ -4,8 +4,9 @@ pragma solidity ^0.4.11;
 // TODO: contract description
 contract Issuehunter {
 
-    // The address of the entity that will verify proposed patches.
-    address public patchVerifier;
+    // The address of the entity that will manage proposed patches in case no
+    // address is specified during campaign creation.
+    address public defaultPatchVerifier;
 
     // The time in seconds between when a patch has been verified and when
     // funders can't rollback their funds anymore.
@@ -52,6 +53,9 @@ contract Issuehunter {
         // address, then a submitted patch has been verified and `resolvedBy` is
         // the patch author's address.
         address resolvedBy;
+
+        // The address of the entity that will verify proposed patches.
+        address patchVerifier;
     }
 
     // A mapping between issues (their ids) and campaigns.
@@ -65,19 +69,25 @@ contract Issuehunter {
     event WithdrawFunds(bytes32 indexed issueId, address resolvedBy);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
 
-    /// Create a new contract instance and set message sender as the patch
-    //  verifier.
+    /// Create a new contract instance and set message sender as the default
+    //  patch verifier.
     function Issuehunter() {
-        patchVerifier = msg.sender;
+        defaultPatchVerifier = msg.sender;
         // The default pre-reward period is one day
         preRewardPeriod = 86400;
         // The default execution period is one week.
         rewardPeriod = 604800;
     }
 
-    /// Creates a new campaign.
+    /// Creates a new campaign with `defaultPatchVerifier` as the allowed
+    //  address to verify patches.
     function createCampaign(bytes32 issueId) {
-        // If the a campaigns for the selected issue exists already throws an
+        createCampaignWithVerifier(issueId, defaultPatchVerifier);
+    }
+
+    /// Creates a new campaign.
+    function createCampaignWithVerifier(bytes32 issueId, address verifier) {
+        // If a campaign for the selected issue exists already throws an
         // exception.
         require(campaigns[issueId].createdBy == 0);
 
@@ -87,7 +97,8 @@ contract Issuehunter {
             createdBy: msg.sender,
             preRewardPeriodExpiresAt: 0,
             rewardPeriodExpiresAt: 0,
-            resolvedBy: 0
+            resolvedBy: 0,
+            patchVerifier: verifier
         });
 
         CampaignCreated(issueId, msg.sender, now);
@@ -108,7 +119,12 @@ contract Issuehunter {
         campaigns[issueId].funds[msg.sender] += msg.value;
         campaigns[issueId].total += msg.value;
 
-        CampaignFunded(issueId, msg.sender, now, msg.value);
+        CampaignFunded(
+            issueId,
+            msg.sender,
+            now,
+            msg.value
+        );
     }
 
     // Submit a new patch.
@@ -143,10 +159,10 @@ contract Issuehunter {
     // the associated patch's ref don't match with the function arguments. This
     // will prevent concurrent updates of a patch submitted by the same author.
     function verifyPatch(bytes32 issueId, address author, bytes32 ref) {
-        // Only patch verifier is allowed to call this function
-        require(msg.sender == patchVerifier);
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
+        // Only patch verifier is allowed to call this function
+        require(msg.sender == campaigns[issueId].patchVerifier);
         // Fail if author didn't submit the selected patch
         require(campaigns[issueId].patches[author] == ref);
         // Fail if a patche has been already verified

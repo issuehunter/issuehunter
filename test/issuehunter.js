@@ -69,6 +69,14 @@ const addressBalance = Promise.denodeify(function (address, callback) {
   web3.eth.getBalance(address, web3.eth.defaultBlock, callback)
 })
 
+const newCampaignId = (function () {
+  var counter = 200
+  return function () {
+    counter += 1
+    return `new-campaign-${counter}`
+  }
+})()
+
 contract('Issuehunter', function (accounts) {
   const patchVerifier = accounts[0]
   const issuehunter = Issuehunter.deployed()
@@ -76,6 +84,17 @@ contract('Issuehunter', function (accounts) {
   const newCampaign = function (issueId, account) {
     return issuehunter.then(function (instance) {
       return instance.createCampaign(issueId, { from: account })
+    }).then(function (result) {
+      assert(findEvent(result, 'CampaignCreated'), 'A new `CampaignCreated` event has been triggered')
+      return issuehunter
+    }).then(function (instance) {
+      return instance.campaigns.call(issueId)
+    })
+  }
+
+  const newCampaignWithVerifier = function (issueId, patchVerifier, account) {
+    return issuehunter.then(function (instance) {
+      return instance.createCampaignWithVerifier(issueId, patchVerifier, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'CampaignCreated'), 'A new `CampaignCreated` event has been triggered')
       return issuehunter
@@ -150,11 +169,11 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  it('should make the first account the patch verifier', function () {
+  it('should make the first account the default patch verifier', function () {
     return issuehunter.then(function (instance) {
-      return instance.patchVerifier.call()
+      return instance.defaultPatchVerifier.call()
     }).then(function (patchVerifier) {
-      assert.equal(patchVerifier.valueOf(), patchVerifier, 'The first account should be the patch verifier')
+      assert.equal(patchVerifier.valueOf(), patchVerifier, 'The first account should be the default patch verifier')
     })
   })
 
@@ -178,13 +197,22 @@ contract('Issuehunter', function (accounts) {
     it('should create a new crowdfunding campaign', function () {
       const issueId = 'new-campaign-1'
 
-      return newCampaign(issueId, accounts[1]).then(function (campaign) {
+      const finalState = newCampaign(issueId, accounts[1])
+      const defaultPatchVerifier = issuehunter.then(function (instance) {
+        return instance.defaultPatchVerifier.call()
+      })
+
+      return finalState.then(function (campaign) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
         assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
+
+        return Promise.all([finalState, defaultPatchVerifier])
+      }).then(function ([campaign, defPatchVerifier]) {
+        assert.equal(campaign[6].valueOf(), defPatchVerifier, 'The default patch verifier should be the new campaign\'s patch verifier')
       })
     })
 
@@ -196,6 +224,38 @@ contract('Issuehunter', function (accounts) {
           return issuehunter
         }).then(function (instance) {
           return instance.createCampaign(issueId, { from: accounts[1] })
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+  })
+
+  describe('createCampaignWithVerifier', function () {
+    it('should create a new crowdfunding campaign with a custom patch verifier', function () {
+      const issueId = newCampaignId()
+      const patchVerifier = accounts[3]
+
+      return newCampaignWithVerifier(issueId, patchVerifier, accounts[1]).then(function (campaign) {
+        assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
+        assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
+        assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
+        assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
+        assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
+        assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
+        assert.equal(campaign[6].valueOf(), patchVerifier, 'The custom patch verifier should be the new campaign\'s patch verifier')
+      })
+    })
+
+    context('a campaign is already present', function () {
+      const issueId = newCampaignId()
+      const patchVerifier = accounts[3]
+
+      it('should fail to create a new campaign', function () {
+        const finalState = newCampaignWithVerifier(issueId, patchVerifier, accounts[1]).then(function () {
+          return issuehunter
+        }).then(function (instance) {
+          return instance.createCampaignWithVerifier(issueId, patchVerifier, { from: accounts[1] })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
