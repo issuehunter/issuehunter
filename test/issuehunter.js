@@ -694,7 +694,7 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('withdrawReward', function () {
-    it('should withdraw the whole campaing\'s amount as a reward', function () {
+    it('should withdraw the whole campaign\'s amount as a reward', function () {
       const issueId = 'new-campaign-15'
       const ref = 'sha'
       const funder1 = accounts[1]
@@ -843,7 +843,7 @@ contract('Issuehunter', function (accounts) {
       const txValue = 10
       const author = accounts[1]
 
-      it('successfully withdraws the whole campaing\'s amount as a reward', function () {
+      it('successfully withdraws the whole campaign\'s amount as a reward', function () {
         return newCampaign(issueId, accounts[1]).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
@@ -918,7 +918,7 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('withdrawSpareFunds', function () {
-    it('should withdraw spare funds in the campaing', function () {
+    it('should withdraw spare funds in the campaign', function () {
       const issueId = 'new-campaign-21'
       const ref = 'sha'
       const funder1 = accounts[1]
