@@ -293,14 +293,14 @@ contract Issuehunter {
     ////////////////////////////////////////////////////////////////////////////
     // Getters
     ////////////////////////////////////////////////////////////////////////////
-    function campaignFunds(bytes32 issueId, address funder) public view returns (uint amount) {
+    function campaignFunds(bytes32 issueId, address funder) public returns (uint amount) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
         return campaigns[issueId].funds[funder];
     }
 
-    function campaignResolutions(bytes32 issueId, address author) public view returns (bytes32 ref) {
+    function campaignResolutions(bytes32 issueId, address author) public returns (bytes32 ref) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
