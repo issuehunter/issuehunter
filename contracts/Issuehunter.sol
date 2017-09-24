@@ -36,6 +36,7 @@ contract Issuehunter is Mortal {
         bool rewarded;
 
         // The total amount of funds associated to the issue.
+        // TODO: rename to "rewardAmount"?
         uint total;
 
         // The address that created the campaign. Mainly used to check if a
@@ -166,6 +167,10 @@ contract Issuehunter is Mortal {
 
         // TODO: require that a campaign hasn't any verified patch
 
+        // TODO: require that a campaign has a positive reward amount (?) It
+        // doesn't make a lot of sense to submit a patch for a campaign that
+        // wouldn't give any reward, but maybe it's better to check anyway
+
         // Calculate fee amount based on the current transaction's gas price
         uint feeAmount = _patchVerificationFee(tx.gasprice);
         // Fail if the transaction value is less than the verification fee
@@ -262,6 +267,7 @@ contract Issuehunter is Mortal {
         // withdraw a reward even after the `rewardPeriodExpiresAt` has passed?
         require(now <= campaigns[issueId].rewardPeriodExpiresAt);
 
+        // Set campaign status as "rewarded"
         campaigns[issueId].rewarded = true;
         msg.sender.transfer(campaigns[issueId].total);
         WithdrawFunds(issueId, msg.sender);
