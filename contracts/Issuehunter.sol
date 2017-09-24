@@ -71,7 +71,7 @@ contract Issuehunter {
 
     /// Create a new contract instance and set message sender as the default
     //  patch verifier.
-    function Issuehunter() {
+    function Issuehunter() public {
         defaultPatchVerifier = msg.sender;
         // The default pre-reward period is one day
         preRewardPeriod = 86400;
@@ -81,12 +81,12 @@ contract Issuehunter {
 
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
     //  address to verify patches.
-    function createCampaign(bytes32 issueId) {
+    function createCampaign(bytes32 issueId) public {
         createCampaignWithVerifier(issueId, defaultPatchVerifier);
     }
 
     /// Creates a new campaign.
-    function createCampaignWithVerifier(bytes32 issueId, address verifier) {
+    function createCampaignWithVerifier(bytes32 issueId, address verifier) public {
         // If a campaign for the selected issue exists already throws an
         // exception.
         require(campaigns[issueId].createdBy == 0);
@@ -109,7 +109,7 @@ contract Issuehunter {
     // TODO: add issuehunter "tip". The tip could be used to compute the issue
     // campaign's rank in the list. Higher tips will make campaigns more visible
     // in the directory, by making them appear with a higher rank in the list.
-    function fund(bytes32 issueId) payable {
+    function fund(bytes32 issueId) public payable {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
@@ -131,7 +131,7 @@ contract Issuehunter {
     //
     // TODO: the sender must pay a fee that will be used by the patch verifier
     // to send the transaction to verify the patch.
-    function submitPatch(bytes32 issueId, bytes32 ref) {
+    function submitPatch(bytes32 issueId, bytes32 ref) public {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if sender already submitted the same patch
@@ -158,7 +158,7 @@ contract Issuehunter {
     // The function will throw an exception if the patch author's address and
     // the associated patch's ref don't match with the function arguments. This
     // will prevent concurrent updates of a patch submitted by the same author.
-    function verifyPatch(bytes32 issueId, address author, bytes32 ref) {
+    function verifyPatch(bytes32 issueId, address author, bytes32 ref) public {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Only patch verifier is allowed to call this function
@@ -185,7 +185,7 @@ contract Issuehunter {
     // incur in a fee. The fee will be added to funds from the null address
     // (0x0000000) and it will be included in the campaign's total reward
     // amount.
-    function rollbackFunds(bytes32 issueId) {
+    function rollbackFunds(bytes32 issueId) public {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if the issue hasn't been resolved yet
@@ -211,7 +211,7 @@ contract Issuehunter {
     // * `rewardPeriodExpiresAt` hasn't passed
     // * the patch has been verified and the address requesting the transaction
     //   is the one stored as the verified patch's author (`resolvedBy`)
-    function withdrawReward(bytes32 issueId) {
+    function withdrawReward(bytes32 issueId) public {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Fail if all funds have been rolled back
@@ -263,7 +263,7 @@ contract Issuehunter {
     // * `rewardPeriodExpiresAt` has passed
     // * the verified patch's author didn't withdraw the campaign reward yet
     // * the backer didn't withdraw their funds yet
-    function withdrawSpareFunds(bytes32 issueId) {
+    function withdrawSpareFunds(bytes32 issueId) public {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
         // Funders can't withdraw spare funds if a patch has been verified and
@@ -293,14 +293,14 @@ contract Issuehunter {
     ////////////////////////////////////////////////////////////////////////////
     // Getters
     ////////////////////////////////////////////////////////////////////////////
-    function campaignFunds(bytes32 issueId, address funder) returns (uint amount) {
+    function campaignFunds(bytes32 issueId, address funder) public view returns (uint amount) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
         return campaigns[issueId].funds[funder];
     }
 
-    function campaignResolutions(bytes32 issueId, address author) returns (bytes32 ref) {
+    function campaignResolutions(bytes32 issueId, address author) public view returns (bytes32 ref) {
         // Require that a campaign exists
         require(campaigns[issueId].createdBy != 0);
 
