@@ -79,8 +79,10 @@ contract Issuehunter is Mortal {
     function Issuehunter() public {
         defaultPatchVerifier = msg.sender;
         // The default pre-reward period is one day
+        // TODO: make this value a constant
         preRewardPeriod = 86400;
         // The default execution period is one week.
+        // TODO: make this value a constant
         rewardPeriod = 604800;
     }
 
