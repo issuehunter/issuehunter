@@ -22,9 +22,7 @@ contract Issuehunter is Mortal {
 
     // Estimated gas to execute `verifyPatch`. This value will be used to
     // calculate the patch verifier fee that should applied to submit patches.
-    //
-    // TODO: recalculate after fee application (!!!)
-    uint public constant verifyPatchEstimatedGas = 65511;
+    uint public constant verifyPatchEstimatedGas = 107255;
 
     // Default tip per mille.
     uint public constant defaultTipPerMille = 50;
