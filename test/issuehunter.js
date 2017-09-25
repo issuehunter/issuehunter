@@ -91,6 +91,10 @@ contract('Issuehunter', function (accounts) {
     return gprice.mul(estGas).mul(2)
   })
 
+  const defaultPatchVerifier = issuehunter.then(function (instance) {
+    return instance.defaultPatchVerifier.call()
+  })
+
   const defaultTipPerMille = issuehunter.then(function (instance) {
     return instance.defaultTipPerMille.call()
   })
@@ -221,26 +225,32 @@ contract('Issuehunter', function (accounts) {
     })
   })
 
+  it('should correctly initialize `tipsAmount` field', function () {
+    return issuehunter.then(function (instance) {
+      return instance.tipsAmount.call()
+    }).then(function (tipsAmount) {
+      assert.equal(tipsAmount.toNumber(), 0, 'The initial tips amount should be zero')
+    })
+  })
+
   describe('createCampaign', function () {
     it('should create a new crowdfunding campaign', function () {
       const issueId = 'new-campaign-1'
 
-      const finalState = newCampaign(issueId, accounts[1])
-      const defaultPatchVerifier = issuehunter.then(function (instance) {
-        return instance.defaultPatchVerifier.call()
-      })
-
-      return finalState.then(function (campaign) {
+      return Promise.all([
+        newCampaign(issueId, accounts[1]),
+        defaultPatchVerifier,
+        defaultTipPerMille
+      ]).then(function ([campaign, defPatchVerifier, defTipPerMille]) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
         assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
-
-        return Promise.all([finalState, defaultPatchVerifier])
-      }).then(function ([campaign, defPatchVerifier]) {
         assert.equal(campaign[6].valueOf(), defPatchVerifier, 'The default patch verifier should be the new campaign\'s patch verifier')
+        assert.equal(campaign[7].toNumber(), defTipPerMille.toNumber(), 'The default tip per mille should be the new campaign\'s tip value')
+        assert.equal(campaign[8].toNumber(), 0, 'A new campaign with a zero tips amount should be present')
       })
     })
 
@@ -530,6 +540,53 @@ contract('Issuehunter', function (accounts) {
         assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`preRewardPeriodExpiresAt` value should have been updated')
         assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`rewardPeriodExpiresAt` value should have been updated')
         assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
+      })
+    })
+
+    it('should set the correct tips amount', function () {
+      const issueId = newCampaignId()
+      const funder = accounts[4]
+      const txValue = 100
+      const ref = 'sha'
+      const author = accounts[1]
+
+      const expectedTipsAmount = defaultTipPerMille.then(function (tipPerMille) {
+        return txValue - (txValue * (1000 - tipPerMille.toNumber()) / 1000)
+      })
+
+      const initialContractTipsAmount = issuehunter.then(function (instance) {
+        return instance.tipsAmount.call()
+      })
+
+      const patchVerified = newCampaign(issueId, accounts[1]).then(function () {
+        return fundCampaign(issueId, txValue, funder)
+      }).then(function () {
+        return submitPatch(issueId, ref, author)
+      }).then(function () {
+        return verifyPatch(issueId, author, ref, patchVerifier)
+      })
+
+      return patchVerified.then(function () {
+        return Promise.all([patchVerified, currentBlockTimestamp(), expectedTipsAmount])
+      }).then(function ([campaign, now, tipsAmount]) {
+        assert.equal(campaign[3].toNumber(), now + 60 * 60 * 24, '`preRewardPeriodExpiresAt` value should have been updated')
+        assert.equal(campaign[4].toNumber(), now + 60 * 60 * 24 * 8, '`rewardPeriodExpiresAt` value should have been updated')
+        assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
+        assert.equal(
+          campaign[8].toNumber(),
+          tipsAmount,
+          '`tipsAmount` should be the difference between campaign\'s total ' +
+          'amount and the tips per mille reciprocal of the total amount'
+        )
+        return issuehunter
+      }).then(function (instance) {
+        return Promise.all([initialContractTipsAmount, instance.tipsAmount.call(), expectedTipsAmount])
+      }).then(function ([initialTipsAmount, currentTipsAmount, tipsAmount]) {
+        assert.equal(
+          currentTipsAmount.toNumber(),
+          initialTipsAmount.toNumber() + tipsAmount,
+          'contract\'s `tipsAmount` should be increased by the current tips amount'
+        )
       })
     })
 
