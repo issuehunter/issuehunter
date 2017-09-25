@@ -201,6 +201,15 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
+  const withdrawTips = function (account) {
+    return issuehunter.then(function (instance) {
+      return instance.withdrawTips({ from: account })
+    }).then(function (result) {
+      assert(findEvent(result, 'WithdrawTips'), 'A new `WithdrawTips` event has been triggered')
+      return issuehunter
+    })
+  }
+
   it('should make the first account the default patch verifier', function () {
     return issuehunter.then(function (instance) {
       return instance.defaultPatchVerifier.call()
@@ -1283,6 +1292,101 @@ contract('Issuehunter', function (accounts) {
         assert(true, 'contract killed')
       }).catch(function () {
         assert(false, 'it is supposed to successed')
+      })
+    })
+  })
+
+  describe('withdrawTips', function () {
+    it('should withdraw spare funds in the campaign', function () {
+      const issueId = newCampaignId()
+      const ref = 'sha'
+      const funder = accounts[1]
+      const txValue = 100
+      const author = accounts[2]
+      const owner = accounts[0]
+
+      const expectedTipsAmount = defaultTipPerMille.then(function (tipPerMille) {
+        return txValue - (txValue * (1000 - tipPerMille.toNumber()) / 1000)
+      })
+
+      const initialContractTipsAmount = issuehunter.then(function (instance) {
+        return instance.tipsAmount.call()
+      })
+
+      const ownerInitialBalance = addressBalance(owner)
+
+      return newCampaign(issueId, accounts[1]).then(function () {
+        return fundCampaign(issueId, txValue, funder)
+      }).then(function () {
+        return submitPatch(issueId, ref, author)
+      }).then(function () {
+        return verifyPatch(issueId, author, ref, patchVerifier)
+      }).then(function (campaign) {
+        return withdrawTips(owner)
+      }).then(function (instance) {
+        return instance.tipsAmount.call()
+      }).then(function (tipsAmount) {
+        assert.equal(tipsAmount.toNumber(), 0, 'Contract\'s tips amount has been reset to 0')
+        return Promise.all([ownerInitialBalance, addressBalance(owner), initialContractTipsAmount, expectedTipsAmount])
+      }).then(function ([initialAmount, currentAmount, initialTipsAmount, tipsAmount]) {
+        // TODO: find a better way to check for a user's account balance delta
+        // This is a workaround and it won't work under all conditions. It
+        // partially works because transactions are in wei, but gas are some
+        // orders of magnitude more expensive
+        assert.equal(
+          currentAmount.mod(10000) - initialAmount.mod(10000),
+          initialTipsAmount.toNumber() + tipsAmount,
+          'Owner balance has been increased by the contract\'s tips amount, ' +
+          'that is the initial contract\'s tips amount plus the last campaign\'s ' +
+          'tips amount'
+        )
+      })
+    })
+
+    context('msg.sender is not the owner of the contract', function () {
+      it('should fail to withdraw tips', function () {
+        const issueId = newCampaignId()
+        const ref = 'sha'
+        const funder = accounts[1]
+        const txValue = 10
+        const author = accounts[2]
+
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitPatch(issueId, ref, author)
+        }).then(function () {
+          return verifyPatch(issueId, author, ref, patchVerifier)
+        }).then(function (campaign) {
+          return withdrawTips(accounts[2])
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+
+    context('tips amount is zero', function () {
+      it('should fail to withdraw tips', function () {
+        const issueId = newCampaignId()
+        const ref = 'sha'
+        const funder = accounts[1]
+        const txValue = 10
+        const author = accounts[2]
+        const owner = accounts[0]
+
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return fundCampaign(issueId, txValue, funder)
+        }).then(function () {
+          return submitPatch(issueId, ref, author)
+        }).then(function () {
+          return verifyPatch(issueId, author, ref, patchVerifier)
+        }).then(function (campaign) {
+          return withdrawTips(owner)
+        }).then(function (campaign) {
+          return withdrawTips(owner)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
       })
     })
   })

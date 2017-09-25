@@ -94,6 +94,7 @@ contract Issuehunter is Mortal {
     event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
     event WithdrawReward(bytes32 indexed issueId, address resolvedBy, uint amount);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
+    event WithdrawTips(address owner, uint amount);
 
     /// Create a new contract instance and set message sender as the default
     //  patch verifier.
@@ -333,6 +334,35 @@ contract Issuehunter is Mortal {
         uint amount = _rollbackFunds(campaigns[issueId], msg.sender);
 
         WithdrawSpareFunds(issueId, msg.sender, amount);
+    }
+
+    // The default patch verifier, that is the contract owner, has the ability
+    // to withdraw tips.
+    //
+    // Tips are calculated after a patch has been successfully verified. From
+    // that moment on, tips are applied to all subsequent withdrawals from
+    // campaign's funds (fund rollbacks, reward withdrawal, spare funds
+    // withdrawals).
+    //
+    // TODO: it doesn't make a lot of sense that the default patch verifier is
+    // used instead of the owner of the contract. Let's add a new contract
+    // variable to store the contract's owner address.
+    function withdrawTips() public {
+        // msg.sender must be the contract's owner
+        //
+        // TODO: fix confusion between default patch verifier and contract's
+        // owner
+        require(msg.sender == defaultPatchVerifier);
+        // Disallow `withdrawTips` if `tipsAmount` is zero
+        require(tipsAmount > 0);
+
+        uint amount = tipsAmount;
+        // Reset contract's tips amount to zero
+        tipsAmount = 0;
+        // Transfer tips amount to contract's owner account
+        msg.sender.transfer(amount);
+
+        WithdrawTips(msg.sender, amount);
     }
 
     // TODO: add doc...
