@@ -426,6 +426,29 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
+    context('a patch has been already verified', function () {
+      const issueId = newCampaignId()
+      const ref = 'sha'
+      const txValue = 10
+      const funder = accounts[3]
+      const author = accounts[1]
+
+      it('should fail to add more funds to the campaign', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return submitPatch(issueId, ref, author)
+        }).then(function () {
+          return verifyPatch(issueId, author, ref, patchVerifier)
+        }).then(function (campaign) {
+          assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
+          // Test that it's not allowed to add funds to a campaign that has been
+          // resolved
+          return fundCampaign(issueId, txValue, funder)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
 
@@ -511,6 +534,28 @@ contract('Issuehunter', function (accounts) {
           return minVerificationFee
         }).then(function (minFee) {
           return submitPatchWithFee(issueId, ref, minFee.sub(1), accounts[1])
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+
+    context('a patch has been already verified', function () {
+      const issueId = newCampaignId()
+      const ref1 = 'sha-1'
+      const ref2 = 'sha-2'
+      const author = accounts[1]
+
+      it('should fail to submit a new patch', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return submitPatch(issueId, ref1, author)
+        }).then(function () {
+          return verifyPatch(issueId, author, ref1, patchVerifier)
+        }).then(function (campaign) {
+          assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
+          // Test that it's not allowed to submit new patches after a patch has
+          // been verified
+          return submitPatch(issueId, ref2, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
