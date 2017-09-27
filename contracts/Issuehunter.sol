@@ -2,6 +2,7 @@ pragma solidity ^0.4.11;
 
 import "./Mortal.sol";
 
+
 // TODO: contract description
 contract Issuehunter is Mortal {
 
