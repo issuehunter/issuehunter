@@ -281,10 +281,10 @@ contract('Issuehunter', function (accounts) {
   describe('createCampaignExtended', function () {
     it('should create a new crowdfunding campaign with a custom patch verifier', function () {
       const issueId = newCampaignId()
-      const patchVerifier = accounts[3]
+      const customPatchVerifier = accounts[3]
 
       return DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
-        return newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1])
+        return newCampaignExtended(issueId, customPatchVerifier, tipPerMille, accounts[1])
       }).then(function (campaign) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
@@ -292,14 +292,13 @@ contract('Issuehunter', function (accounts) {
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
-        assert.equal(campaign[6].valueOf(), patchVerifier, 'The custom patch verifier should be the new campaign\'s patch verifier')
+        assert.equal(campaign[6].valueOf(), customPatchVerifier, 'The custom patch verifier should be the new campaign\'s patch verifier')
       })
     })
 
     context('tip value', function () {
       it('should create a new crowdfunding campaign with a custom tip value', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
         const randomTipPerMille = Promise.all([MIN_TIP_PER_MILLE, MAX_TIP_PER_MILLE]).then(function ([min, max]) {
           // Return a random integer between min inclusive and max inclusive
           // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random
@@ -318,7 +317,6 @@ contract('Issuehunter', function (accounts) {
 
       it('should allow a custom tip value that is equal to MIN_TIP_PER_MILLE', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         return MIN_TIP_PER_MILLE.then(function (minTip) {
           return Promise.all([
@@ -332,7 +330,6 @@ contract('Issuehunter', function (accounts) {
 
       it('should allow a custom tip value that is equal to MAX_TIP_PER_MILLE', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         return MAX_TIP_PER_MILLE.then(function (maxTip) {
           return Promise.all([
@@ -346,7 +343,6 @@ contract('Issuehunter', function (accounts) {
 
       context('a tip value that is too low', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         it('should fail to create a new campaign', function () {
           const finalState = MIN_TIP_PER_MILLE.then(function (minTip) {
@@ -359,7 +355,6 @@ contract('Issuehunter', function (accounts) {
 
       context('a tip value that is too high', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         it('should fail to create a new campaign', function () {
           const finalState = MAX_TIP_PER_MILLE.then(function (maxTip) {
@@ -373,7 +368,6 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign is already present', function () {
       const issueId = newCampaignId()
-      const patchVerifier = accounts[3]
 
       it('should fail to create a new campaign', function () {
         const finalState = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
@@ -423,6 +417,29 @@ contract('Issuehunter', function (accounts) {
         return instance.campaignFunds.call(issueId, funder)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue1 + txValue2, 'Campaign\'s funder amount should be updated')
+      })
+    })
+
+    context('a patch has been already verified', function () {
+      const issueId = newCampaignId()
+      const ref = 'sha'
+      const txValue = 10
+      const funder = accounts[3]
+      const author = accounts[1]
+
+      it('should fail to add more funds to the campaign', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return submitPatch(issueId, ref, author)
+        }).then(function () {
+          return verifyPatch(issueId, author, ref, patchVerifier)
+        }).then(function (campaign) {
+          assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
+          // Test that it's not allowed to add funds to a campaign that has been
+          // resolved
+          return fundCampaign(issueId, txValue, funder)
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
       })
     })
 
@@ -511,6 +528,28 @@ contract('Issuehunter', function (accounts) {
           return minVerificationFee
         }).then(function (minFee) {
           return submitPatchWithFee(issueId, ref, minFee.sub(1), accounts[1])
+        })
+
+        return assertContractException(finalState, 'An exception has been thrown')
+      })
+    })
+
+    context('a patch has been already verified', function () {
+      const issueId = newCampaignId()
+      const ref1 = 'sha-1'
+      const ref2 = 'sha-2'
+      const author = accounts[1]
+
+      it('should fail to submit a new patch', function () {
+        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+          return submitPatch(issueId, ref1, author)
+        }).then(function () {
+          return verifyPatch(issueId, author, ref1, patchVerifier)
+        }).then(function (campaign) {
+          assert.equal(campaign[5].valueOf(), author, '`resolvedBy` address should be verified patch\'s author address')
+          // Test that it's not allowed to submit new patches after a patch has
+          // been verified
+          return submitPatch(issueId, ref2, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
