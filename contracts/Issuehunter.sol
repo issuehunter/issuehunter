@@ -133,7 +133,7 @@ contract Issuehunter is Mortal {
         // `MAX_TIP_PER_MILLE`
         require(_tipPerMille >= MIN_TIP_PER_MILLE && _tipPerMille <= MAX_TIP_PER_MILLE);
 
-        // TODO: verify that `verifier` is a valid address
+        // TODO: verify that `_patchVerifier` is a valid address
 
         campaigns[issueId] = Campaign({
             rewarded: false,
