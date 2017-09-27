@@ -299,7 +299,6 @@ contract('Issuehunter', function (accounts) {
     context('tip value', function () {
       it('should create a new crowdfunding campaign with a custom tip value', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
         const randomTipPerMille = Promise.all([MIN_TIP_PER_MILLE, MAX_TIP_PER_MILLE]).then(function ([min, max]) {
           // Return a random integer between min inclusive and max inclusive
           // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random
@@ -318,7 +317,6 @@ contract('Issuehunter', function (accounts) {
 
       it('should allow a custom tip value that is equal to MIN_TIP_PER_MILLE', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         return MIN_TIP_PER_MILLE.then(function (minTip) {
           return Promise.all([
@@ -332,7 +330,6 @@ contract('Issuehunter', function (accounts) {
 
       it('should allow a custom tip value that is equal to MAX_TIP_PER_MILLE', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         return MAX_TIP_PER_MILLE.then(function (maxTip) {
           return Promise.all([
@@ -346,7 +343,6 @@ contract('Issuehunter', function (accounts) {
 
       context('a tip value that is too low', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         it('should fail to create a new campaign', function () {
           const finalState = MIN_TIP_PER_MILLE.then(function (minTip) {
@@ -359,7 +355,6 @@ contract('Issuehunter', function (accounts) {
 
       context('a tip value that is too high', function () {
         const issueId = newCampaignId()
-        const patchVerifier = accounts[3]
 
         it('should fail to create a new campaign', function () {
           const finalState = MAX_TIP_PER_MILLE.then(function (maxTip) {
@@ -373,7 +368,6 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign is already present', function () {
       const issueId = newCampaignId()
-      const patchVerifier = accounts[3]
 
       it('should fail to create a new campaign', function () {
         const finalState = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
