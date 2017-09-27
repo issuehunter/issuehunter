@@ -87,7 +87,7 @@ contract('Issuehunter', function (accounts) {
     return instance.VERIFY_PATCH_ESTIMATED_GAS.call()
   })
 
-  const minVerificationFee = Promise.all([gasPrice(), VERIFY_PATCH_ESTIMATED_GAS]).then(function ([gprice, estGas]) {
+  const minSubmissionFee = Promise.all([gasPrice(), VERIFY_PATCH_ESTIMATED_GAS]).then(function ([gprice, estGas]) {
     return gprice.mul(estGas).mul(2)
   })
 
@@ -152,7 +152,7 @@ contract('Issuehunter', function (accounts) {
   }
 
   const submitPatch = function (issueId, ref, account) {
-    return minVerificationFee.then(function (minFee) {
+    return minSubmissionFee.then(function (minFee) {
       return submitPatchWithFee(issueId, ref, minFee, account)
     })
   }
@@ -470,7 +470,7 @@ contract('Issuehunter', function (accounts) {
         return submitPatch(issueId, ref1, accounts[1])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
-        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(verifier)])
       }).then(function ([minFee, initialAmount, currentAmount]) {
         // Note: compare account balance difference with a lower precision than
         // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
@@ -481,7 +481,7 @@ contract('Issuehunter', function (accounts) {
         return submitPatch(issueId, ref1, accounts[2])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
-        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(verifier)])
       }).then(function ([minFee, initialAmount, currentAmount]) {
         // Note: compare account balance difference with a lower precision than
         // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
@@ -491,7 +491,7 @@ contract('Issuehunter', function (accounts) {
         return submitPatch(issueId, ref2, accounts[1])
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref2, 'Patch has been stored')
-        return Promise.all([minVerificationFee, verifierInitialBalance, addressBalance(verifier)])
+        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(verifier)])
       }).then(function ([minFee, initialAmount, currentAmount]) {
         // Note: compare account balance difference with a lower precision than
         // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
@@ -519,13 +519,13 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
-    context('transaction fee is lower than required verification fee', function () {
+    context('transaction fee is lower than required submission fee', function () {
       const issueId = newCampaignId()
       const ref = 'sha'
 
       it('should fail to submit the same patch twice', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return minVerificationFee
+          return minSubmissionFee
         }).then(function (minFee) {
           return submitPatchWithFee(issueId, ref, minFee.sub(1), accounts[1])
         })
@@ -561,7 +561,7 @@ contract('Issuehunter', function (accounts) {
       const ref = 'sha'
 
       it('should fail to submit a patch', function () {
-        const finalState = Promise.all([issuehunter, minVerificationFee]).then(function ([instance, minFee]) {
+        const finalState = Promise.all([issuehunter, minSubmissionFee]).then(function ([instance, minFee]) {
           return instance.submitPatch(issueId, ref, { from: accounts[1], value: minFee })
         })
 
