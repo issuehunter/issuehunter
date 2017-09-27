@@ -2,6 +2,7 @@ pragma solidity ^0.4.11;
 
 import "./Mortal.sol";
 
+
 // TODO: contract description
 contract Issuehunter is Mortal {
 
@@ -17,9 +18,21 @@ contract Issuehunter is Mortal {
     // verified patch's author can't withdraw campaign's reward anymore.
     uint public rewardPeriod;
 
+    // The current amount of tips collected by the contract.
+    uint public tipsAmount;
+
     // Estimated gas to execute `verifyPatch`. This value will be used to
     // calculate the patch verifier fee that should applied to submit patches.
-    uint public constant verifyPatchEstimatedGas = 65511;
+    uint public constant VERIFY_PATCH_ESTIMATED_GAS = 107255;
+
+    // Default tip per mille.
+    uint public constant DEFAULT_TIP_PER_MILLE = 50;
+
+    // 1% is the minimum tip.
+    uint public constant MIN_TIP_PER_MILLE = 10;
+
+    // 20% is the maximum tip.
+    uint public constant MAX_TIP_PER_MILLE = 200;
 
     // A crowdfunding campaign.
     struct Campaign {
@@ -27,6 +40,7 @@ contract Issuehunter is Mortal {
         bool rewarded;
 
         // The total amount of funds associated to the issue.
+        // TODO: rename to "rewardAmount"?
         uint total;
 
         // The address that created the campaign. Mainly used to check if a
@@ -61,6 +75,12 @@ contract Issuehunter is Mortal {
 
         // The address of the entity that will verify proposed patches.
         address patchVerifier;
+
+        // The campaign fund tip per mille for the platform.
+        uint tipPerMille;
+
+        // Campaign's tips amount.
+        uint tipsAmount;
     }
 
     // A mapping between issues (their ids) and campaigns.
@@ -71,30 +91,39 @@ contract Issuehunter is Mortal {
     event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
-    event WithdrawFunds(bytes32 indexed issueId, address resolvedBy);
+    event WithdrawReward(bytes32 indexed issueId, address resolvedBy, uint amount);
     event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
+    event WithdrawTips(address owner, uint amount);
 
     /// Create a new contract instance and set message sender as the default
     //  patch verifier.
     function Issuehunter() public {
         defaultPatchVerifier = msg.sender;
         // The default pre-reward period is one day
+        // TODO: make this value a constant
         preRewardPeriod = 86400;
         // The default execution period is one week.
+        // TODO: make this value a constant
         rewardPeriod = 604800;
+        // Initial tips amount.
+        tipsAmount = 0;
     }
 
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
-    //  address to verify patches.
+    //  address to verify patches, and the `DEFAULT_TIP_PER_MILLE` as the per
+    //  mille funds tip value.
     function createCampaign(bytes32 issueId) public {
-        createCampaignWithVerifier(issueId, defaultPatchVerifier);
+        createCampaignExtended(issueId, defaultPatchVerifier, DEFAULT_TIP_PER_MILLE);
     }
 
     /// Creates a new campaign.
-    function createCampaignWithVerifier(bytes32 issueId, address verifier) public {
+    function createCampaignExtended(bytes32 issueId, address _patchVerifier, uint _tipPerMille) public {
         // If a campaign for the selected issue exists already throws an
         // exception.
         require(campaigns[issueId].createdBy == 0);
+        // Requires that tip is valid, that is between `MIN_TIP_PER_MILLE` and
+        // `MAX_TIP_PER_MILLE`
+        require(_tipPerMille >= MIN_TIP_PER_MILLE && _tipPerMille <= MAX_TIP_PER_MILLE);
 
         // TODO: verify that `verifier` is a valid address
 
@@ -105,7 +134,9 @@ contract Issuehunter is Mortal {
             preRewardPeriodExpiresAt: 0,
             rewardPeriodExpiresAt: 0,
             resolvedBy: 0,
-            patchVerifier: verifier
+            patchVerifier: _patchVerifier,
+            tipPerMille: _tipPerMille,
+            tipsAmount: 0
         });
 
         CampaignCreated(issueId, msg.sender, now);
@@ -147,6 +178,10 @@ contract Issuehunter is Mortal {
 
         // TODO: require that a campaign hasn't any verified patch
 
+        // TODO: require that a campaign has a positive reward amount (?) It
+        // doesn't make a lot of sense to submit a patch for a campaign that
+        // wouldn't give any reward, but maybe it's better to check anyway
+
         // Calculate fee amount based on the current transaction's gas price
         uint feeAmount = _patchVerificationFee(tx.gasprice);
         // Fail if the transaction value is less than the verification fee
@@ -186,6 +221,8 @@ contract Issuehunter is Mortal {
         campaigns[issueId].resolvedBy = author;
         campaigns[issueId].preRewardPeriodExpiresAt = now + preRewardPeriod;
         campaigns[issueId].rewardPeriodExpiresAt = campaigns[issueId].preRewardPeriodExpiresAt + rewardPeriod;
+        campaigns[issueId].tipsAmount = campaigns[issueId].total - _reciprocalPerMille(campaigns[issueId].total, campaigns[issueId].tipPerMille);
+        tipsAmount += campaigns[issueId].tipsAmount;
 
         PatchVerified(issueId, author, campaigns[issueId].patches[author]);
     }
@@ -243,9 +280,14 @@ contract Issuehunter is Mortal {
         // withdraw a reward even after the `rewardPeriodExpiresAt` has passed?
         require(now <= campaigns[issueId].rewardPeriodExpiresAt);
 
+        // Set campaign status as "rewarded"
         campaigns[issueId].rewarded = true;
-        msg.sender.transfer(campaigns[issueId].total);
-        WithdrawFunds(issueId, msg.sender);
+
+        // Compute remaining withdrawable amount after tips
+        uint rewardAmount = _reciprocalPerMille(campaigns[issueId].total, campaigns[issueId].tipPerMille);
+        msg.sender.transfer(rewardAmount);
+
+        WithdrawReward(issueId, msg.sender, rewardAmount);
 
         // TODO: archive campaign (?)
         //
@@ -293,13 +335,33 @@ contract Issuehunter is Mortal {
         WithdrawSpareFunds(issueId, msg.sender, amount);
     }
 
+    // The contract owner, has the ability to withdraw tips.
+    //
+    // Tips are computed after a patch has been successfully verified. From that
+    // moment on, tips are applied to all subsequent campaign's funds
+    // withdrawals (fund rollbacks, reward withdrawal, spare funds withdrawals).
+    function withdrawTips() onlyOwner public {
+        // Disallow `withdrawTips` if `tipsAmount` is zero
+        require(tipsAmount > 0);
+
+        uint amount = tipsAmount;
+        // Reset contract's tips amount to zero
+        tipsAmount = 0;
+        // Transfer tips amount to contract's owner account
+        msg.sender.transfer(amount);
+
+        WithdrawTips(msg.sender, amount);
+    }
+
     // TODO: add doc...
     function _rollbackFunds(Campaign storage campaign, address funder) internal returns (uint amount) {
-        amount = campaign.funds[funder];
-        require(amount > 0);
+        uint funds = campaign.funds[funder];
+        require(funds > 0);
 
         campaign.funds[funder] = 0;
-        campaign.total -= amount;
+        campaign.total -= funds;
+        // Compute remaining withdrawable amount after tips
+        amount = _reciprocalPerMille(funds, campaign.tipPerMille);
         funder.transfer(amount);
 
         return amount;
@@ -310,7 +372,19 @@ contract Issuehunter is Mortal {
     // according the gas price in input. In theory this should be more than
     // enough for the verifier to run the transaction and to spare some gas.
     function _patchVerificationFee(uint gasprice) internal returns (uint) {
-        return gasprice * verifyPatchEstimatedGas * 2;
+        return gasprice * VERIFY_PATCH_ESTIMATED_GAS * 2;
+    }
+
+    // Return the reciprocal of the `tipPerMille` value applied to `amount`.
+    //
+    // The reciprocal is used, instead of a tip amount, because `uint` division
+    // always truncates. This means that the amount of Ether returned by the
+    // contract will be always less than or equal to the amount after the
+    // calculation at a higher precision.
+    //
+    // TODO: review math
+    function _reciprocalPerMille(uint amount, uint tipPerMille) internal returns (uint) {
+        return amount * (1000 - tipPerMille) / 1000;
     }
 
     ////////////////////////////////////////////////////////////////////////////
