@@ -115,6 +115,13 @@ contract Issuehunter is Mortal {
         _;
     }
 
+    // Require that a campaign has been resolved, that is it has a verified
+    // patch.
+    modifier resolved(bytes32 issueId) {
+        require(campaigns[issueId].resolvedBy != 0);
+        _;
+    }
+
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
     //  address to verify patches, and the `DEFAULT_TIP_PER_MILLE` as the per
     //  mille funds tip value.
@@ -238,9 +245,7 @@ contract Issuehunter is Mortal {
     // incur in a fee. The fee will be added to funds from the null address
     // (0x0000000) and it will be included in the campaign's total reward
     // amount.
-    function rollbackFunds(bytes32 issueId) public exists(issueId) {
-        // Fail if the issue hasn't been resolved yet
-        require(campaigns[issueId].resolvedBy != 0);
+    function rollbackFunds(bytes32 issueId) public exists(issueId) resolved(issueId) {
         // Fail if reward period has expired
         require(now <= campaigns[issueId].preRewardPeriodExpiresAt);
 
@@ -317,10 +322,9 @@ contract Issuehunter is Mortal {
     // * `rewardPeriodExpiresAt` has passed
     // * the verified patch's author didn't withdraw the campaign reward yet
     // * the backer didn't withdraw their funds yet
-    function withdrawSpareFunds(bytes32 issueId) public exists(issueId) {
-        // Funders can't withdraw spare funds if a patch has been verified and
-        // the campaign has been rewarded
-        require(campaigns[issueId].resolvedBy != 0 && !campaigns[issueId].rewarded);
+    function withdrawSpareFunds(bytes32 issueId) public exists(issueId) resolved(issueId) {
+        // Funders can't withdraw spare funds if the campaign has been rewarded
+        require(!campaigns[issueId].rewarded);
         // Funders can withdraw spare funds only after execute period has
         // expired
         require(now > campaigns[issueId].rewardPeriodExpiresAt);
