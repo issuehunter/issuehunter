@@ -1,0 +1,12 @@
+dist: trusty
+sudo: false
+
+language: node_js
+node_js:
+  - "7"
+
+install:
+  - npm install
+
+before_script:
+  - npm run testrpc > testrpc.log &
