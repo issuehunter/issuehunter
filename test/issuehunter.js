@@ -901,6 +901,7 @@ contract('Issuehunter', function (accounts) {
       const funder = sampleAccount()
 
       it('should fail to rollback funds', function () {
+        // TODO: make the test pass all the other contraints
         const finalState = issuehunter.then(function (instance) {
           return instance.rollbackFunds(issueId, { from: funder })
         })
