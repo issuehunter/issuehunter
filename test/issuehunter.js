@@ -803,7 +803,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          return increaseTime(60 * 60 * 24)
+          return increaseTime(60 * 60 * 24 - 1)
         }).then(function () {
           return rollbackFunds(issueId, funder)
         }).then(function (campaign) {
