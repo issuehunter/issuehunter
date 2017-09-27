@@ -126,6 +126,8 @@ contract Issuehunter is Mortal {
     function createCampaignExtended(bytes32 issueId, address _patchVerifier, uint _tipPerMille) public {
         // If a campaign for the selected issue exists already throws an
         // exception.
+        //
+        // TODO: support archiving campaigns or smarter campaign indexing
         require(campaigns[issueId].createdBy == 0);
         // Requires that tip is valid, that is between `MIN_TIP_PER_MILLE` and
         // `MAX_TIP_PER_MILLE`
