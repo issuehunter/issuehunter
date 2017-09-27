@@ -83,11 +83,11 @@ contract('Issuehunter', function (accounts) {
   const patchVerifier = accounts[0]
   const issuehunter = Issuehunter.deployed()
 
-  const verifyPatchEstimatedGas = issuehunter.then(function (instance) {
-    return instance.verifyPatchEstimatedGas.call()
+  const VERIFY_PATCH_ESTIMATED_GAS = issuehunter.then(function (instance) {
+    return instance.VERIFY_PATCH_ESTIMATED_GAS.call()
   })
 
-  const minVerificationFee = Promise.all([gasPrice(), verifyPatchEstimatedGas]).then(function ([gprice, estGas]) {
+  const minVerificationFee = Promise.all([gasPrice(), VERIFY_PATCH_ESTIMATED_GAS]).then(function ([gprice, estGas]) {
     return gprice.mul(estGas).mul(2)
   })
 
@@ -95,16 +95,16 @@ contract('Issuehunter', function (accounts) {
     return instance.defaultPatchVerifier.call()
   })
 
-  const defaultTipPerMille = issuehunter.then(function (instance) {
-    return instance.defaultTipPerMille.call()
+  const DEFAULT_TIP_PER_MILLE = issuehunter.then(function (instance) {
+    return instance.DEFAULT_TIP_PER_MILLE.call()
   })
 
-  const minTipPerMille = issuehunter.then(function (instance) {
-    return instance.minTipPerMille.call()
+  const MIN_TIP_PER_MILLE = issuehunter.then(function (instance) {
+    return instance.MIN_TIP_PER_MILLE.call()
   })
 
-  const maxTipPerMille = issuehunter.then(function (instance) {
-    return instance.maxTipPerMille.call()
+  const MAX_TIP_PER_MILLE = issuehunter.then(function (instance) {
+    return instance.MAX_TIP_PER_MILLE.call()
   })
 
   const newCampaign = function (issueId, account) {
@@ -249,7 +249,7 @@ contract('Issuehunter', function (accounts) {
       return Promise.all([
         newCampaign(issueId, accounts[1]),
         defaultPatchVerifier,
-        defaultTipPerMille
+        DEFAULT_TIP_PER_MILLE
       ]).then(function ([campaign, defPatchVerifier, defTipPerMille]) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
@@ -283,7 +283,7 @@ contract('Issuehunter', function (accounts) {
       const issueId = newCampaignId()
       const patchVerifier = accounts[3]
 
-      return defaultTipPerMille.then(function (tipPerMille) {
+      return DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
         return newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1])
       }).then(function (campaign) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
@@ -300,7 +300,7 @@ contract('Issuehunter', function (accounts) {
       it('should create a new crowdfunding campaign with a custom tip value', function () {
         const issueId = newCampaignId()
         const patchVerifier = accounts[3]
-        const randomTipPerMille = Promise.all([minTipPerMille, maxTipPerMille]).then(function ([min, max]) {
+        const randomTipPerMille = Promise.all([MIN_TIP_PER_MILLE, MAX_TIP_PER_MILLE]).then(function ([min, max]) {
           // Return a random integer between min inclusive and max inclusive
           // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random
           return Math.floor(Math.random() * (max.toNumber() + 1 - min.toNumber())) + min.toNumber()
@@ -316,28 +316,28 @@ contract('Issuehunter', function (accounts) {
         })
       })
 
-      it('should allow a custom tip value that is equal to minTipPerMille', function () {
+      it('should allow a custom tip value that is equal to MIN_TIP_PER_MILLE', function () {
         const issueId = newCampaignId()
         const patchVerifier = accounts[3]
 
-        return minTipPerMille.then(function (minTip) {
+        return MIN_TIP_PER_MILLE.then(function (minTip) {
           return Promise.all([
             newCampaignExtended(issueId, patchVerifier, minTip, accounts[1]),
-            minTipPerMille
+            MIN_TIP_PER_MILLE
           ])
         }).then(function ([campaign, minTip]) {
           assert.equal(campaign[7].toNumber(), minTip, 'The custom tip per mille should be the new campaign\'s tip value')
         })
       })
 
-      it('should allow a custom tip value that is equal to maxTipPerMille', function () {
+      it('should allow a custom tip value that is equal to MAX_TIP_PER_MILLE', function () {
         const issueId = newCampaignId()
         const patchVerifier = accounts[3]
 
-        return maxTipPerMille.then(function (maxTip) {
+        return MAX_TIP_PER_MILLE.then(function (maxTip) {
           return Promise.all([
             newCampaignExtended(issueId, patchVerifier, maxTip, accounts[1]),
-            maxTipPerMille
+            MAX_TIP_PER_MILLE
           ])
         }).then(function ([campaign, maxTip]) {
           assert.equal(campaign[7].toNumber(), maxTip, 'The custom tip per mille should be the new campaign\'s tip value')
@@ -349,7 +349,7 @@ contract('Issuehunter', function (accounts) {
         const patchVerifier = accounts[3]
 
         it('should fail to create a new campaign', function () {
-          const finalState = minTipPerMille.then(function (minTip) {
+          const finalState = MIN_TIP_PER_MILLE.then(function (minTip) {
             return newCampaignExtended(issueId, patchVerifier, minTip.toNumber() - 1, accounts[1])
           })
 
@@ -362,7 +362,7 @@ contract('Issuehunter', function (accounts) {
         const patchVerifier = accounts[3]
 
         it('should fail to create a new campaign', function () {
-          const finalState = maxTipPerMille.then(function (maxTip) {
+          const finalState = MAX_TIP_PER_MILLE.then(function (maxTip) {
             return newCampaignExtended(issueId, patchVerifier, maxTip.toNumber() + 1, accounts[1])
           })
 
@@ -376,10 +376,10 @@ contract('Issuehunter', function (accounts) {
       const patchVerifier = accounts[3]
 
       it('should fail to create a new campaign', function () {
-        const finalState = defaultTipPerMille.then(function (tipPerMille) {
+        const finalState = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
           return newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1])
         }).then(function () {
-          return Promise.all([issuehunter, defaultTipPerMille])
+          return Promise.all([issuehunter, DEFAULT_TIP_PER_MILLE])
         }).then(function ([instance, tipPerMille]) {
           return instance.createCampaignExtended(issueId, patchVerifier, tipPerMille, { from: accounts[1] })
         })
@@ -559,7 +559,7 @@ contract('Issuehunter', function (accounts) {
       const ref = 'sha'
       const author = accounts[1]
 
-      const expectedTipsAmount = defaultTipPerMille.then(function (tipPerMille) {
+      const expectedTipsAmount = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
         return txValue - (txValue * (1000 - tipPerMille.toNumber()) / 1000)
       })
 
@@ -890,7 +890,7 @@ contract('Issuehunter', function (accounts) {
         return instance.campaignFunds.call(issueId, funder2)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
-        return Promise.all([initialAuthorBalance, addressBalance(author), defaultTipPerMille])
+        return Promise.all([initialAuthorBalance, addressBalance(author), DEFAULT_TIP_PER_MILLE])
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
         withdrawableAmount = Math.floor((txValue1 + txValue2) * (1000 - tipPerMille.toNumber()) / 1000)
         // TODO: find a better way to check for a user's account balance delta
@@ -1120,7 +1120,7 @@ contract('Issuehunter', function (accounts) {
         return instance.campaignFunds.call(issueId, funder2)
       }).then(function (amount) {
         assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
-        return Promise.all([funder1InitialBalance, addressBalance(funder1), defaultTipPerMille])
+        return Promise.all([funder1InitialBalance, addressBalance(funder1), DEFAULT_TIP_PER_MILLE])
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
         withdrawableAmount = Math.floor(txValue1 * (1000 - tipPerMille.toNumber()) / 1000)
         expectedBalanceDelta = withdrawableAmount - txValue1
@@ -1305,7 +1305,7 @@ contract('Issuehunter', function (accounts) {
       const author = accounts[2]
       const owner = accounts[0]
 
-      const expectedTipsAmount = defaultTipPerMille.then(function (tipPerMille) {
+      const expectedTipsAmount = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
         return txValue - (txValue * (1000 - tipPerMille.toNumber()) / 1000)
       })
 

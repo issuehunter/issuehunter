@@ -22,16 +22,16 @@ contract Issuehunter is Mortal {
 
     // Estimated gas to execute `verifyPatch`. This value will be used to
     // calculate the patch verifier fee that should applied to submit patches.
-    uint public constant verifyPatchEstimatedGas = 107255;
+    uint public constant VERIFY_PATCH_ESTIMATED_GAS = 107255;
 
     // Default tip per mille.
-    uint public constant defaultTipPerMille = 50;
+    uint public constant DEFAULT_TIP_PER_MILLE = 50;
 
     // 1% is the minimum tip.
-    uint public constant minTipPerMille = 10;
+    uint public constant MIN_TIP_PER_MILLE = 10;
 
     // 20% is the maximum tip.
-    uint public constant maxTipPerMille = 200;
+    uint public constant MAX_TIP_PER_MILLE = 200;
 
     // A crowdfunding campaign.
     struct Campaign {
@@ -109,10 +109,10 @@ contract Issuehunter is Mortal {
     }
 
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
-    //  address to verify patches, and the `defaultTipPerMille` as the per mille
-    //  funds tip value.
+    //  address to verify patches, and the `DEFAULT_TIP_PER_MILLE` as the per
+    //  mille funds tip value.
     function createCampaign(bytes32 issueId) public {
-        createCampaignExtended(issueId, defaultPatchVerifier, defaultTipPerMille);
+        createCampaignExtended(issueId, defaultPatchVerifier, DEFAULT_TIP_PER_MILLE);
     }
 
     /// Creates a new campaign.
@@ -120,9 +120,9 @@ contract Issuehunter is Mortal {
         // If a campaign for the selected issue exists already throws an
         // exception.
         require(campaigns[issueId].createdBy == 0);
-        // Requires that tip is valid, that is between `minTipPerMille` and
-        // `maxTipPerMille`
-        require(_tipPerMille >= minTipPerMille && _tipPerMille <= maxTipPerMille);
+        // Requires that tip is valid, that is between `MIN_TIP_PER_MILLE` and
+        // `MAX_TIP_PER_MILLE`
+        require(_tipPerMille >= MIN_TIP_PER_MILLE && _tipPerMille <= MAX_TIP_PER_MILLE);
 
         // TODO: verify that `verifier` is a valid address
 
@@ -382,7 +382,7 @@ contract Issuehunter is Mortal {
     // according the gas price in input. In theory this should be more than
     // enough for the verifier to run the transaction and to spare some gas.
     function _patchVerificationFee(uint gasprice) internal returns (uint) {
-        return gasprice * verifyPatchEstimatedGas * 2;
+        return gasprice * VERIFY_PATCH_ESTIMATED_GAS * 2;
     }
 
     // Return the reciprocal of the `tipPerMille` value applied to `amount`.
