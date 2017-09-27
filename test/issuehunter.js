@@ -71,8 +71,8 @@ const addressBalance = Promise.denodeify(function (address, callback) {
 
 const gasPrice = Promise.denodeify(web3.eth.getGasPrice)
 
-const newCampaignId = (function () {
-  var counter = 200
+const nextCampaignId = (function () {
+  var counter = 0
   return function () {
     counter += 1
     return `new-campaign-${counter}`
@@ -244,7 +244,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('createCampaign', function () {
     it('should create a new crowdfunding campaign', function () {
-      const issueId = 'new-campaign-1'
+      const issueId = nextCampaignId()
 
       return Promise.all([
         newCampaign(issueId, accounts[1]),
@@ -264,7 +264,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign is already present', function () {
-      const issueId = 'new-campaign-2'
+      const issueId = nextCampaignId()
 
       it('should fail to create a new campaign', function () {
         const finalState = newCampaign(issueId, accounts[1]).then(function () {
@@ -280,7 +280,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('createCampaignExtended', function () {
     it('should create a new crowdfunding campaign with a custom patch verifier', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const customPatchVerifier = accounts[3]
 
       return DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
@@ -298,7 +298,7 @@ contract('Issuehunter', function (accounts) {
 
     context('tip value', function () {
       it('should create a new crowdfunding campaign with a custom tip value', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
         const randomTipPerMille = Promise.all([MIN_TIP_PER_MILLE, MAX_TIP_PER_MILLE]).then(function ([min, max]) {
           // Return a random integer between min inclusive and max inclusive
           // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random
@@ -316,7 +316,7 @@ contract('Issuehunter', function (accounts) {
       })
 
       it('should allow a custom tip value that is equal to MIN_TIP_PER_MILLE', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         return MIN_TIP_PER_MILLE.then(function (minTip) {
           return Promise.all([
@@ -329,7 +329,7 @@ contract('Issuehunter', function (accounts) {
       })
 
       it('should allow a custom tip value that is equal to MAX_TIP_PER_MILLE', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         return MAX_TIP_PER_MILLE.then(function (maxTip) {
           return Promise.all([
@@ -342,7 +342,7 @@ contract('Issuehunter', function (accounts) {
       })
 
       context('a tip value that is too low', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         it('should fail to create a new campaign', function () {
           const finalState = MIN_TIP_PER_MILLE.then(function (minTip) {
@@ -354,7 +354,7 @@ contract('Issuehunter', function (accounts) {
       })
 
       context('a tip value that is too high', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         it('should fail to create a new campaign', function () {
           const finalState = MAX_TIP_PER_MILLE.then(function (maxTip) {
@@ -367,7 +367,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign is already present', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
 
       it('should fail to create a new campaign', function () {
         const finalState = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
@@ -385,7 +385,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('fund', function () {
     it('should add funds to the campaign', function () {
-      const issueId = 'new-campaign-3'
+      const issueId = nextCampaignId()
       const funder = accounts[1]
       const txValue1 = 12
       const txValue2 = 24
@@ -421,7 +421,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch has been already verified', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const txValue = 10
       const funder = accounts[3]
@@ -458,7 +458,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('submitPatch', function () {
     it('should store a new ref associated to the transaction sender', function () {
-      const issueId = 'new-campaign-4'
+      const issueId = nextCampaignId()
       const ref1 = 'sha-1'
       const ref2 = 'sha-2'
       const verifier = accounts[0]
@@ -501,7 +501,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('account already submitted a patch', function () {
-      const issueId = 'new-campaign-5'
+      const issueId = nextCampaignId()
       const ref = 'sha'
 
       it('should fail to submit the same patch twice', function () {
@@ -520,7 +520,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('transaction fee is lower than required submission fee', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const ref = 'sha'
 
       it('should fail to submit the same patch twice', function () {
@@ -535,7 +535,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch has been already verified', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const ref1 = 'sha-1'
       const ref2 = 'sha-2'
       const author = accounts[1]
@@ -572,7 +572,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('verifyPatch', function () {
     it('should set the selected address as the campaign\'s resolvedBy', function () {
-      const issueId = 'new-campaign-6'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const author = accounts[1]
 
@@ -592,7 +592,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     it('should set the correct tips amount', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const funder = accounts[4]
       const txValue = 100
       const ref = 'sha'
@@ -639,7 +639,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch has been already verified', function () {
-      const issueId = 'new-campaign-7'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const author = accounts[1]
 
@@ -659,7 +659,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch that doesn\'t exist', function () {
-      const issueId = 'new-campaign-8'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const author = accounts[1]
 
@@ -675,7 +675,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('an address that\'s not associated to the patch verifier', function () {
-      const issueId = 'new-campaign-9'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const author = accounts[1]
 
@@ -693,7 +693,7 @@ contract('Issuehunter', function (accounts) {
     // first patch. `verifyPatch` should fail because it's associated to an old
     // author/ref combination.
     context('patch\'s ref and parameters don\'t match', function () {
-      const issueId = 'new-campaign-mismatch'
+      const issueId = nextCampaignId()
       const ref1 = 'sha1'
       const ref2 = 'sha1'
       const author = accounts[1]
@@ -734,7 +734,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('rollbackFunds', function () {
     it('should remove funding from the selected campaign', function () {
-      const issueId = 'new-campaign-10'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
@@ -763,7 +763,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch hasn\'t been verified yet', function () {
-      const issueId = 'new-campaign-11'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -789,7 +789,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right before the pre-reward period end', function () {
-      const issueId = 'new-campaign-12'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -818,7 +818,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('past the pre-reward period', function () {
-      const issueId = 'new-campaign-13'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -848,7 +848,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('an address that\'s not associated to any funder', function () {
-      const issueId = 'new-campaign-14'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -891,7 +891,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('withdrawReward', function () {
     it('should withdraw the whole campaign\'s amount as a reward', function () {
-      const issueId = 'new-campaign-15'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
@@ -946,7 +946,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign has been already rewarded', function () {
-      const issueId = 'new-campaign-16'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -982,7 +982,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch hasn\'t been verified yet', function () {
-      const issueId = 'new-campaign-17'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -1008,7 +1008,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('msg.sender is not the verified patch\'s author', function () {
-      const issueId = 'new-campaign-18'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -1039,7 +1039,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right before the reward period end', function () {
-      const issueId = 'new-campaign-19'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -1076,7 +1076,7 @@ contract('Issuehunter', function (accounts) {
     // TODO: I think this is not fair. The verified patch's author should always
     // be able to withdraw their reward.
     context('past the reward period', function () {
-      const issueId = 'new-campaign-20'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -1121,7 +1121,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('withdrawSpareFunds', function () {
     it('should withdraw spare funds in the campaign', function () {
-      const issueId = 'new-campaign-21'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder1 = accounts[1]
       const funder2 = accounts[2]
@@ -1178,7 +1178,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign has been already rewarded', function () {
-      const issueId = 'new-campaign-22'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -1217,7 +1217,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right after a funding transaction', function () {
-      const issueId = 'new-campaign-23'
+      const issueId = nextCampaignId()
       const funder = accounts[1]
       const txValue = 10
 
@@ -1239,7 +1239,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('msg.sender is not a funder', function () {
-      const issueId = 'new-campaign-24'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -1270,7 +1270,7 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right before the reward period expiration', function () {
-      const issueId = 'new-campaign-25'
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 10
@@ -1337,7 +1337,7 @@ contract('Issuehunter', function (accounts) {
 
   describe('withdrawTips', function () {
     it('should withdraw spare funds in the campaign', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = accounts[1]
       const txValue = 100
@@ -1384,7 +1384,7 @@ contract('Issuehunter', function (accounts) {
 
     context('msg.sender is not the owner of the contract', function () {
       it('should fail to withdraw tips', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
         const ref = 'sha'
         const funder = accounts[1]
         const txValue = 10
@@ -1406,7 +1406,7 @@ contract('Issuehunter', function (accounts) {
 
     context('tips amount is zero', function () {
       it('should fail to withdraw tips', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
         const ref = 'sha'
         const funder = accounts[1]
         const txValue = 10
