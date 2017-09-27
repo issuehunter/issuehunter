@@ -109,6 +109,12 @@ contract Issuehunter is Mortal {
         tipsAmount = 0;
     }
 
+    // Require that a campaign exists.
+    modifier exists(bytes32 issueId) {
+        require(campaigns[issueId].createdBy != 0);
+        _;
+    }
+
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
     //  address to verify patches, and the `DEFAULT_TIP_PER_MILLE` as the per
     //  mille funds tip value.
@@ -147,10 +153,7 @@ contract Issuehunter is Mortal {
     // TODO: add issuehunter "tip". The tip could be used to compute the issue
     // campaign's rank in the list. Higher tips will make campaigns more visible
     // in the directory, by making them appear with a higher rank in the list.
-    function fund(bytes32 issueId) public payable {
-        // Require that a campaign exists
-        require(campaigns[issueId].createdBy != 0);
-
+    function fund(bytes32 issueId) public payable exists(issueId) {
         // TODO: require that a campaign hasn't any verified patch
 
         // Add funds to the list, and update campaign's funds total amount
@@ -170,9 +173,7 @@ contract Issuehunter is Mortal {
     // This method is defined as payable because the sender must pay a patch
     // verification fee that will be used by the patch verifier, after the patch
     // has been verified, to inform the contract of the successful verification.
-    function submitPatch(bytes32 issueId, bytes32 ref) public payable {
-        // Require that a campaign exists
-        require(campaigns[issueId].createdBy != 0);
+    function submitPatch(bytes32 issueId, bytes32 ref) public payable exists(issueId) {
         // Fail if sender already submitted the same patch
         require(campaigns[issueId].patches[msg.sender] == 0 || campaigns[issueId].patches[msg.sender] != ref);
 
@@ -208,9 +209,7 @@ contract Issuehunter is Mortal {
     // The function will throw an exception if the patch author's address and
     // the associated patch's ref don't match with the function arguments. This
     // will prevent concurrent updates of a patch submitted by the same author.
-    function verifyPatch(bytes32 issueId, address author, bytes32 ref) public {
-        // Require that a campaign exists
-        require(campaigns[issueId].createdBy != 0);
+    function verifyPatch(bytes32 issueId, address author, bytes32 ref) public exists(issueId) {
         // Only patch verifier is allowed to call this function
         require(msg.sender == campaigns[issueId].patchVerifier);
         // Fail if author didn't submit the selected patch
@@ -237,9 +236,7 @@ contract Issuehunter is Mortal {
     // incur in a fee. The fee will be added to funds from the null address
     // (0x0000000) and it will be included in the campaign's total reward
     // amount.
-    function rollbackFunds(bytes32 issueId) public {
-        // Require that a campaign exists
-        require(campaigns[issueId].createdBy != 0);
+    function rollbackFunds(bytes32 issueId) public exists(issueId) {
         // Fail if the issue hasn't been resolved yet
         require(campaigns[issueId].resolvedBy != 0);
         // Fail if reward period has expired
@@ -263,9 +260,7 @@ contract Issuehunter is Mortal {
     // * `rewardPeriodExpiresAt` hasn't passed
     // * the patch has been verified and the address requesting the transaction
     //   is the one stored as the verified patch's author (`resolvedBy`)
-    function withdrawReward(bytes32 issueId) public {
-        // Require that a campaign exists
-        require(campaigns[issueId].createdBy != 0);
+    function withdrawReward(bytes32 issueId) public exists(issueId) {
         // Fail if all funds have been rolled back
         require(campaigns[issueId].total > 0);
         // A campaign can be rewarded only once
@@ -320,9 +315,7 @@ contract Issuehunter is Mortal {
     // * `rewardPeriodExpiresAt` has passed
     // * the verified patch's author didn't withdraw the campaign reward yet
     // * the backer didn't withdraw their funds yet
-    function withdrawSpareFunds(bytes32 issueId) public {
-        // Require that a campaign exists
-        require(campaigns[issueId].createdBy != 0);
+    function withdrawSpareFunds(bytes32 issueId) public exists(issueId) {
         // Funders can't withdraw spare funds if a patch has been verified and
         // the campaign has been rewarded
         require(campaigns[issueId].resolvedBy != 0 && !campaigns[issueId].rewarded);
@@ -340,7 +333,7 @@ contract Issuehunter is Mortal {
     // Tips are computed after a patch has been successfully verified. From that
     // moment on, tips are applied to all subsequent campaign's funds
     // withdrawals (fund rollbacks, reward withdrawal, spare funds withdrawals).
-    function withdrawTips() onlyOwner public {
+    function withdrawTips() public onlyOwner {
         // Disallow `withdrawTips` if `tipsAmount` is zero
         require(tipsAmount > 0);
 
