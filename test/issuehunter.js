@@ -892,7 +892,7 @@ contract('Issuehunter', function (accounts) {
         assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
         return Promise.all([initialAuthorBalance, addressBalance(author), DEFAULT_TIP_PER_MILLE])
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
-        withdrawableAmount = Math.floor((txValue1 + txValue2) * (1000 - tipPerMille.toNumber()) / 1000)
+        const withdrawableAmount = Math.floor((txValue1 + txValue2) * (1000 - tipPerMille.toNumber()) / 1000)
         // TODO: find a better way to check for a user's account balance delta
         // This is a workaround and it won't work under all conditions. It
         // partially works because transactions are in wei, but gas are some
@@ -1122,8 +1122,8 @@ contract('Issuehunter', function (accounts) {
         assert.equal(amount.toNumber(), txValue2, 'Campaign\'s funder amount is unmodified')
         return Promise.all([funder1InitialBalance, addressBalance(funder1), DEFAULT_TIP_PER_MILLE])
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
-        withdrawableAmount = Math.floor(txValue1 * (1000 - tipPerMille.toNumber()) / 1000)
-        expectedBalanceDelta = withdrawableAmount - txValue1
+        const withdrawableAmount = Math.floor(txValue1 * (1000 - tipPerMille.toNumber()) / 1000)
+        const expectedBalanceDelta = withdrawableAmount - txValue1
         // TODO: find a better way to check for a user's account balance delta
         // This is a workaround and it won't work under all conditions. It
         // partially works because transactions are in wei, but gas are some
