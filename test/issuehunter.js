@@ -1284,7 +1284,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          return increaseTime(60 * 60 * 24 * 8)
+          return increaseTime((60 * 60 * 24 * 7) - 1)
         }).then(function () {
           return withdrawSpareFunds(issueId, funder)
         })
