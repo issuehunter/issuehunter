@@ -281,10 +281,10 @@ contract('Issuehunter', function (accounts) {
   describe('createCampaignExtended', function () {
     it('should create a new crowdfunding campaign with a custom patch verifier', function () {
       const issueId = newCampaignId()
-      const patchVerifier = accounts[3]
+      const customPatchVerifier = accounts[3]
 
       return DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
-        return newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1])
+        return newCampaignExtended(issueId, customPatchVerifier, tipPerMille, accounts[1])
       }).then(function (campaign) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
@@ -292,7 +292,7 @@ contract('Issuehunter', function (accounts) {
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
-        assert.equal(campaign[6].valueOf(), patchVerifier, 'The custom patch verifier should be the new campaign\'s patch verifier')
+        assert.equal(campaign[6].valueOf(), customPatchVerifier, 'The custom patch verifier should be the new campaign\'s patch verifier')
       })
     })
 
