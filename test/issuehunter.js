@@ -1439,7 +1439,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function (campaign) {
-          return withdrawTips(sampleAccount())
+          return withdrawTips(sampleAccountExcluding([owner]))
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
