@@ -1,4 +1,18 @@
 const Promise = require('promise')
+const seedrandom = require('seedrandom')
+
+// Seed random function
+let seed
+let seedArg
+process.argv.forEach(function (arg) {
+  const matchSeedArg = arg.match(/--seed=([^\s]+)/)
+  if (matchSeedArg) {
+    seedArg = matchSeedArg[1]
+  }
+})
+seed = seedArg ? seedArg : Math.random().toString()
+console.log('Seed: ' + seed)
+seedrandom(seed, { global: true })
 
 const Issuehunter = artifacts.require('./Issuehunter.sol')
 
