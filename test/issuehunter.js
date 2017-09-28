@@ -1376,7 +1376,7 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('withdrawTips', function () {
-    it('should withdraw spare funds in the campaign', function () {
+    it('should withdraw contract\'s tips', function () {
       const issueId = nextCampaignId()
       const ref = 'sha'
       const funder = sampleAccount()
