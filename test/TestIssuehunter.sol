@@ -16,7 +16,7 @@ contract TestIssuehunter {
     function testInitialIssueManagerWithNewIssuehunter() {
         Issuehunter issuehunter = new Issuehunter();
 
-        Assert.equal(issuehunter.defaultPatchVerifier(), tx.origin, "Contract creator should be the default patch verifier");
+        Assert.equal(issuehunter.defaultPatchVerifier(), this, "Contract creator should be the default patch verifier");
     }
 
 }
