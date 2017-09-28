@@ -803,7 +803,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          return increaseTime(60 * 60 * 24)
+          return increaseTime(60 * 60 * 24 - 5)
         }).then(function () {
           return rollbackFunds(issueId, funder)
         }).then(function (campaign) {
@@ -1056,7 +1056,7 @@ contract('Issuehunter', function (accounts) {
           // The reward period end is one week after the pre-reward period
           // ends, that is 7 + 1 days from the moment the patch has been
           // verified
-          return increaseTime(60 * 60 * 24 * 8)
+          return increaseTime(60 * 60 * 24 * (7 + 1) - 5)
         }).then(function () {
           return withdrawReward(issueId, author)
         }).then(function (campaign) {
@@ -1284,7 +1284,7 @@ contract('Issuehunter', function (accounts) {
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          return increaseTime(60 * 60 * 24 * 8)
+          return increaseTime(60 * 60 * 24 * (7 + 1) - 5)
         }).then(function () {
           return withdrawSpareFunds(issueId, funder)
         })
