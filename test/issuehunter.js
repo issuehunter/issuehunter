@@ -495,11 +495,13 @@ contract('Issuehunter', function (accounts) {
       const issueId = nextCampaignId()
       const ref1 = 'sha-1'
       const ref2 = 'sha-2'
-      const author1 = sampleAccount()
+      const author1 = sampleAccountExcluding([patchVerifier])
+      const author2 = sampleAccountExcluding([author1, patchVerifier])
+      const creator = sampleAccountExcluding([patchVerifier])
 
       const verifierInitialBalance = addressBalance(patchVerifier)
 
-      return newCampaign(issueId, sampleAccount()).then(function () {
+      return newCampaign(issueId, creator).then(function () {
         // Test a `submitPatch` transaction from author1
         return submitPatch(issueId, ref1, author1)
       }).then(function (ref) {
@@ -512,7 +514,7 @@ contract('Issuehunter', function (accounts) {
         assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber(), 'Fee amount has been transferred to verifier\'s account')
         // Test a `submitPatch` transaction for the same commit SHA from a
         // different account
-        return submitPatch(issueId, ref1, sampleAccountExcluding([author1]))
+        return submitPatch(issueId, ref1, author2)
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
         return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(patchVerifier)])
@@ -934,10 +936,11 @@ contract('Issuehunter', function (accounts) {
       const txValue1 = 10
       const txValue2 = 12
       const author = sampleAccountExcluding([funder1, funder2])
+      const creator = sampleAccountExcluding([author])
 
       const initialAuthorBalance = addressBalance(author)
 
-      return newCampaign(issueId, sampleAccount()).then(function () {
+      return newCampaign(issueId, creator).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
