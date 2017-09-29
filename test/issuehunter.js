@@ -1410,13 +1410,26 @@ contract('Issuehunter', function (accounts) {
         assert.equal(tipsAmount.toNumber(), 0, 'Contract\'s tips amount has been reset to 0')
         return Promise.all([ownerInitialBalance, addressBalance(owner), initialContractTipsAmount, expectedTipsAmount])
       }).then(function ([initialAmount, currentAmount, initialTipsAmount, tipsAmount]) {
+        const expectedDelta = initialTipsAmount.toNumber() + tipsAmount
+
         // TODO: find a better way to check for a user's account balance delta
         // This is a workaround and it won't work under all conditions. It
         // partially works because transactions are in wei, but gas are some
-        // orders of magnitude more expensive
+        // orders of magnitude more expensive. There's also an ugly hack to
+        // account for the fact that sometimes it could happen that `initial +
+        // expected delta > modulo`, in those case the result must be adjusted
+        // by `modulo`.
+        const delta = function (current, initial, expectedDelta) {
+          if (initial.mod(10000) + expectedDelta > 10000) {
+            return current.mod(10000) - initial.mod(10000) + 10000
+          } else {
+            return current.mod(10000) - initial.mod(10000)
+          }
+        }
+
         assert.equal(
-          currentAmount.mod(10000) - initialAmount.mod(10000),
-          initialTipsAmount.toNumber() + tipsAmount,
+          delta(currentAmount, initialAmount, expectedDelta),
+          expectedDelta,
           'Owner balance has been increased by the contract\'s tips amount, ' +
           'that is the initial contract\'s tips amount plus the last campaign\'s ' +
           'tips amount'
