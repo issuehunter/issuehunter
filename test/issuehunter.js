@@ -1,4 +1,18 @@
 const Promise = require('promise')
+const seedrandom = require('seedrandom')
+
+// Seed random function
+let seed
+let seedArg
+process.argv.forEach(function (arg) {
+  const matchSeedArg = arg.match(/--seed=([^\s]+)/)
+  if (matchSeedArg) {
+    seedArg = matchSeedArg[1]
+  }
+})
+seed = seedArg ? seedArg : Math.random().toString()
+console.log('Seed: ' + seed)
+seedrandom(seed, { global: true })
 
 const Issuehunter = artifacts.require('./Issuehunter.sol')
 
@@ -71,16 +85,48 @@ const addressBalance = Promise.denodeify(function (address, callback) {
 
 const gasPrice = Promise.denodeify(web3.eth.getGasPrice)
 
-const newCampaignId = (function () {
-  var counter = 200
+const nextCampaignId = (function () {
+  var counter = 0
   return function () {
     counter += 1
     return `new-campaign-${counter}`
   }
 })()
 
+const sample = function (array) {
+  return function () {
+    return array[Math.floor(Math.random() * array.length)]
+  }
+}
+
+const sampleExcluding = function (array) {
+  return function (exclusions) {
+    const filtered = array.filter(function (item) {
+      return exclusions.indexOf(item) < 0
+    })
+    return sample(filtered)()
+  }
+}
+
+// TODO: find a better way to check for a user's account balance delta This is a
+// workaround and it won't work under all conditions. It partially works because
+// transactions are in wei, but gas are some orders of magnitude more expensive.
+// There's also an ugly hack to account for the fact that sometimes it could
+// happen that `initial + expected delta > modulo`, in those case the result
+// must be adjusted by `modulo`.
+const hackDelta = function (current, initial, expectedDelta) {
+  if (initial.mod(10000).add(expectedDelta) > 10000) {
+    return current.mod(10000) - initial.mod(10000) + 10000
+  } else {
+    return current.mod(10000) - initial.mod(10000)
+  }
+}
+
 contract('Issuehunter', function (accounts) {
   const patchVerifier = accounts[0]
+  const owner = accounts[0]
+  const sampleAccount = sample(accounts)
+  const sampleAccountExcluding = sampleExcluding(accounts)
   const issuehunter = Issuehunter.deployed()
 
   const VERIFY_PATCH_ESTIMATED_GAS = issuehunter.then(function (instance) {
@@ -244,16 +290,17 @@ contract('Issuehunter', function (accounts) {
 
   describe('createCampaign', function () {
     it('should create a new crowdfunding campaign', function () {
-      const issueId = 'new-campaign-1'
+      const issueId = nextCampaignId()
+      const creator = sampleAccount()
 
       return Promise.all([
-        newCampaign(issueId, accounts[1]),
+        newCampaign(issueId, creator),
         defaultPatchVerifier,
         DEFAULT_TIP_PER_MILLE
       ]).then(function ([campaign, defPatchVerifier, defTipPerMille]) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
-        assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
+        assert.equal(campaign[2].valueOf(), creator, 'A new campaign with a non-null `createdBy` address should be present')
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
@@ -264,13 +311,13 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign is already present', function () {
-      const issueId = 'new-campaign-2'
+      const issueId = nextCampaignId()
 
       it('should fail to create a new campaign', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return issuehunter
         }).then(function (instance) {
-          return instance.createCampaign(issueId, { from: accounts[1] })
+          return instance.createCampaign(issueId, { from: sampleAccount() })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -280,15 +327,16 @@ contract('Issuehunter', function (accounts) {
 
   describe('createCampaignExtended', function () {
     it('should create a new crowdfunding campaign with a custom patch verifier', function () {
-      const issueId = newCampaignId()
-      const customPatchVerifier = accounts[3]
+      const issueId = nextCampaignId()
+      const creator = sampleAccount()
+      const customPatchVerifier = sampleAccount()
 
       return DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
-        return newCampaignExtended(issueId, customPatchVerifier, tipPerMille, accounts[1])
+        return newCampaignExtended(issueId, customPatchVerifier, tipPerMille, creator)
       }).then(function (campaign) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
-        assert.equal(campaign[2].valueOf(), accounts[1], 'A new campaign with a non-null `createdBy` address should be present')
+        assert.equal(campaign[2].valueOf(), creator, 'A new campaign with a non-null `createdBy` address should be present')
         assert.equal(campaign[3].toNumber(), 0, 'A new campaign with a null `preRewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
@@ -298,7 +346,7 @@ contract('Issuehunter', function (accounts) {
 
     context('tip value', function () {
       it('should create a new crowdfunding campaign with a custom tip value', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
         const randomTipPerMille = Promise.all([MIN_TIP_PER_MILLE, MAX_TIP_PER_MILLE]).then(function ([min, max]) {
           // Return a random integer between min inclusive and max inclusive
           // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random
@@ -307,7 +355,7 @@ contract('Issuehunter', function (accounts) {
 
         return randomTipPerMille.then(function (tipPerMille) {
           return Promise.all([
-            newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1]),
+            newCampaignExtended(issueId, patchVerifier, tipPerMille, sampleAccount()),
             randomTipPerMille
           ])
         }).then(function ([campaign, tipPerMille]) {
@@ -316,11 +364,11 @@ contract('Issuehunter', function (accounts) {
       })
 
       it('should allow a custom tip value that is equal to MIN_TIP_PER_MILLE', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         return MIN_TIP_PER_MILLE.then(function (minTip) {
           return Promise.all([
-            newCampaignExtended(issueId, patchVerifier, minTip, accounts[1]),
+            newCampaignExtended(issueId, patchVerifier, minTip, sampleAccount()),
             MIN_TIP_PER_MILLE
           ])
         }).then(function ([campaign, minTip]) {
@@ -329,11 +377,11 @@ contract('Issuehunter', function (accounts) {
       })
 
       it('should allow a custom tip value that is equal to MAX_TIP_PER_MILLE', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         return MAX_TIP_PER_MILLE.then(function (maxTip) {
           return Promise.all([
-            newCampaignExtended(issueId, patchVerifier, maxTip, accounts[1]),
+            newCampaignExtended(issueId, patchVerifier, maxTip, sampleAccount()),
             MAX_TIP_PER_MILLE
           ])
         }).then(function ([campaign, maxTip]) {
@@ -342,11 +390,11 @@ contract('Issuehunter', function (accounts) {
       })
 
       context('a tip value that is too low', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         it('should fail to create a new campaign', function () {
           const finalState = MIN_TIP_PER_MILLE.then(function (minTip) {
-            return newCampaignExtended(issueId, patchVerifier, minTip.toNumber() - 1, accounts[1])
+            return newCampaignExtended(issueId, patchVerifier, minTip.toNumber() - 1, sampleAccount())
           })
 
           return assertContractException(finalState, 'An exception has been thrown')
@@ -354,11 +402,11 @@ contract('Issuehunter', function (accounts) {
       })
 
       context('a tip value that is too high', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
 
         it('should fail to create a new campaign', function () {
           const finalState = MAX_TIP_PER_MILLE.then(function (maxTip) {
-            return newCampaignExtended(issueId, patchVerifier, maxTip.toNumber() + 1, accounts[1])
+            return newCampaignExtended(issueId, patchVerifier, maxTip.toNumber() + 1, sampleAccount())
           })
 
           return assertContractException(finalState, 'An exception has been thrown')
@@ -367,15 +415,15 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign is already present', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
 
       it('should fail to create a new campaign', function () {
         const finalState = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
-          return newCampaignExtended(issueId, patchVerifier, tipPerMille, accounts[1])
+          return newCampaignExtended(issueId, patchVerifier, tipPerMille, sampleAccount())
         }).then(function () {
           return Promise.all([issuehunter, DEFAULT_TIP_PER_MILLE])
         }).then(function ([instance, tipPerMille]) {
-          return instance.createCampaignExtended(issueId, patchVerifier, tipPerMille, { from: accounts[1] })
+          return instance.createCampaignExtended(issueId, patchVerifier, tipPerMille, { from: sampleAccount() })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -385,8 +433,8 @@ contract('Issuehunter', function (accounts) {
 
   describe('fund', function () {
     it('should add funds to the campaign', function () {
-      const issueId = 'new-campaign-3'
-      const funder = accounts[1]
+      const issueId = nextCampaignId()
+      const funder = sampleAccount()
       const txValue1 = 12
       const txValue2 = 24
 
@@ -396,7 +444,7 @@ contract('Issuehunter', function (accounts) {
         return campaign[1].toNumber()
       })
 
-      return newCampaign(issueId, accounts[1]).then(function () {
+      return newCampaign(issueId, sampleAccount()).then(function () {
         return initialTotal
       }).then(function () {
         // Test a `fund` transaction from `funder`
@@ -421,14 +469,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch has been already verified', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const ref = 'sha'
       const txValue = 10
-      const funder = accounts[3]
-      const author = accounts[1]
+      const funder = sampleAccount()
+      const author = sampleAccount()
 
       it('should fail to add more funds to the campaign', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return submitPatch(issueId, ref, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
@@ -448,7 +496,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to add funds to the campaign', function () {
         const finalState = issuehunter.then(function (instance) {
-          return instance.fund(issueId, { from: accounts[1], value: 12 })
+          return instance.fund(issueId, { from: sampleAccount(), value: 12 })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -458,19 +506,21 @@ contract('Issuehunter', function (accounts) {
 
   describe('submitPatch', function () {
     it('should store a new ref associated to the transaction sender', function () {
-      const issueId = 'new-campaign-4'
+      const issueId = nextCampaignId()
       const ref1 = 'sha-1'
       const ref2 = 'sha-2'
-      const verifier = accounts[0]
+      const author1 = sampleAccountExcluding([patchVerifier])
+      const author2 = sampleAccountExcluding([author1, patchVerifier])
+      const creator = sampleAccountExcluding([patchVerifier])
 
-      const verifierInitialBalance = addressBalance(verifier)
+      const verifierInitialBalance = addressBalance(patchVerifier)
 
-      return newCampaign(issueId, accounts[1]).then(function () {
-        // Test a `submitPatch` transaction from account 2
-        return submitPatch(issueId, ref1, accounts[1])
+      return newCampaign(issueId, creator).then(function () {
+        // Test a `submitPatch` transaction from author1
+        return submitPatch(issueId, ref1, author1)
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
-        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(verifier)])
+        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(patchVerifier)])
       }).then(function ([minFee, initialAmount, currentAmount]) {
         // Note: compare account balance difference with a lower precision than
         // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
@@ -478,20 +528,20 @@ contract('Issuehunter', function (accounts) {
         assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber(), 'Fee amount has been transferred to verifier\'s account')
         // Test a `submitPatch` transaction for the same commit SHA from a
         // different account
-        return submitPatch(issueId, ref1, accounts[2])
+        return submitPatch(issueId, ref1, author2)
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref1, 'Patch has been stored')
-        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(verifier)])
+        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(patchVerifier)])
       }).then(function ([minFee, initialAmount, currentAmount]) {
         // Note: compare account balance difference with a lower precision than
         // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
         // TODO: make this check stricter.
         assert.equal(Math.round((currentAmount - initialAmount) / 100000) * 100000, minFee.toNumber() * 2, 'Fee amount has been transferred to verifier\'s account')
-        // Test a `submitPatch` transaction for a new commit SHA from account 2
-        return submitPatch(issueId, ref2, accounts[1])
+        // Test a `submitPatch` transaction for a new commit SHA from author1
+        return submitPatch(issueId, ref2, author1)
       }).then(function (ref) {
         assert.equal(web3.toUtf8(ref), ref2, 'Patch has been stored')
-        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(verifier)])
+        return Promise.all([minSubmissionFee, verifierInitialBalance, addressBalance(patchVerifier)])
       }).then(function ([minFee, initialAmount, currentAmount]) {
         // Note: compare account balance difference with a lower precision than
         // wei. The result was ~ +/- 5000 wei, but I didn't investigate why.
@@ -501,18 +551,19 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('account already submitted a patch', function () {
-      const issueId = 'new-campaign-5'
+      const issueId = nextCampaignId()
       const ref = 'sha'
+      const author = sampleAccount()
 
       it('should fail to submit the same patch twice', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          // Test a `submitPatch` transaction from account 2
-          return submitPatch(issueId, ref, accounts[1])
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+          // Test a `submitPatch` transaction from author
+          return submitPatch(issueId, ref, author)
         }).then(function (storedCommitSHA) {
           assert.equal(web3.toUtf8(storedCommitSHA), ref, 'Patch has been stored')
           // Test a `submitPatch` transaction for the same commit SHA from
-          // account 2
-          return submitPatch(issueId, ref, accounts[1])
+          // author
+          return submitPatch(issueId, ref, author)
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -520,14 +571,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('transaction fee is lower than required submission fee', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const ref = 'sha'
 
       it('should fail to submit the same patch twice', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return minSubmissionFee
         }).then(function (minFee) {
-          return submitPatchWithFee(issueId, ref, minFee.sub(1), accounts[1])
+          return submitPatchWithFee(issueId, ref, minFee.sub(1), sampleAccount())
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -535,13 +586,13 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch has been already verified', function () {
-      const issueId = newCampaignId()
+      const issueId = nextCampaignId()
       const ref1 = 'sha-1'
       const ref2 = 'sha-2'
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to submit a new patch', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return submitPatch(issueId, ref1, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref1, patchVerifier)
@@ -562,7 +613,7 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to submit a patch', function () {
         const finalState = Promise.all([issuehunter, minSubmissionFee]).then(function ([instance, minFee]) {
-          return instance.submitPatch(issueId, ref, { from: accounts[1], value: minFee })
+          return instance.submitPatch(issueId, ref, { from: sampleAccount(), value: minFee })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -572,11 +623,11 @@ contract('Issuehunter', function (accounts) {
 
   describe('verifyPatch', function () {
     it('should set the selected address as the campaign\'s resolvedBy', function () {
-      const issueId = 'new-campaign-6'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const author = accounts[1]
+      const author = sampleAccount()
 
-      const patchVerified = newCampaign(issueId, accounts[1]).then(function () {
+      const patchVerified = newCampaign(issueId, sampleAccount()).then(function () {
         return submitPatch(issueId, ref, author)
       }).then(function () {
         return verifyPatch(issueId, author, ref, patchVerifier)
@@ -592,11 +643,11 @@ contract('Issuehunter', function (accounts) {
     })
 
     it('should set the correct tips amount', function () {
-      const issueId = newCampaignId()
-      const funder = accounts[4]
+      const issueId = nextCampaignId()
+      const funder = sampleAccount()
       const txValue = 100
       const ref = 'sha'
-      const author = accounts[1]
+      const author = sampleAccount()
 
       const expectedTipsAmount = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
         return txValue - (txValue * (1000 - tipPerMille.toNumber()) / 1000)
@@ -606,7 +657,7 @@ contract('Issuehunter', function (accounts) {
         return instance.tipsAmount.call()
       })
 
-      const patchVerified = newCampaign(issueId, accounts[1]).then(function () {
+      const patchVerified = newCampaign(issueId, sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue, funder)
       }).then(function () {
         return submitPatch(issueId, ref, author)
@@ -639,12 +690,12 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch has been already verified', function () {
-      const issueId = 'new-campaign-7'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to verify again any patch', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return submitPatch(issueId, ref, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
@@ -659,13 +710,13 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch that doesn\'t exist', function () {
-      const issueId = 'new-campaign-8'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to verify a patch', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return submitPatch(issueId, ref, accounts[2])
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+          return submitPatch(issueId, ref, sampleAccountExcluding([author]))
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         })
@@ -675,13 +726,13 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('an address that\'s not associated to the patch verifier', function () {
-      const issueId = 'new-campaign-9'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to verify a patch', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
-          return verifyPatch(issueId, author, ref, accounts[1])
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+          return verifyPatch(issueId, author, ref, sampleAccountExcluding([patchVerifier]))
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -693,13 +744,13 @@ contract('Issuehunter', function (accounts) {
     // first patch. `verifyPatch` should fail because it's associated to an old
     // author/ref combination.
     context('patch\'s ref and parameters don\'t match', function () {
-      const issueId = 'new-campaign-mismatch'
+      const issueId = nextCampaignId()
       const ref1 = 'sha1'
       const ref2 = 'sha1'
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to verify the outdated patch', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return submitPatch(issueId, ref1, author)
         }).then(function () {
           return submitPatch(issueId, ref2, author)
@@ -720,7 +771,7 @@ contract('Issuehunter', function (accounts) {
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
       const ref = 'sha'
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to verify a patch', function () {
         const finalState = issuehunter.then(function (instance) {
@@ -734,15 +785,15 @@ contract('Issuehunter', function (accounts) {
 
   describe('rollbackFunds', function () {
     it('should remove funding from the selected campaign', function () {
-      const issueId = 'new-campaign-10'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder1 = accounts[1]
-      const funder2 = accounts[2]
+      const funder1 = sampleAccount()
+      const funder2 = sampleAccountExcluding([funder1])
       const txValue1 = 10
       const txValue2 = 12
-      const author = accounts[1]
+      const author = sampleAccount()
 
-      return newCampaign(issueId, accounts[1]).then(function () {
+      return newCampaign(issueId, sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
@@ -763,14 +814,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch hasn\'t been verified yet', function () {
-      const issueId = 'new-campaign-11'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -789,14 +840,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right before the pre-reward period end', function () {
-      const issueId = 'new-campaign-12'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('remove funding from the selected campaign', function () {
-        return newCampaign(issueId, accounts[1]).then(function () {
+        return newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -818,14 +869,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('past the pre-reward period', function () {
-      const issueId = 'new-campaign-13'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -848,21 +899,21 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('an address that\'s not associated to any funder', function () {
-      const issueId = 'new-campaign-14'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function () {
-          return rollbackFunds(issueId, accounts[2])
+          return rollbackFunds(issueId, sampleAccountExcluding([funder]))
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -877,9 +928,10 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
-      const funder = accounts[1]
+      const funder = sampleAccount()
 
       it('should fail to rollback funds', function () {
+        // TODO: make the test pass all the other contraints
         const finalState = issuehunter.then(function (instance) {
           return instance.rollbackFunds(issueId, { from: funder })
         })
@@ -891,17 +943,18 @@ contract('Issuehunter', function (accounts) {
 
   describe('withdrawReward', function () {
     it('should withdraw the whole campaign\'s amount as a reward', function () {
-      const issueId = 'new-campaign-15'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder1 = accounts[1]
-      const funder2 = accounts[2]
+      const funder1 = sampleAccount()
+      const funder2 = sampleAccountExcluding([funder1])
       const txValue1 = 10
       const txValue2 = 12
-      const author = accounts[3]
+      const author = sampleAccountExcluding([funder1, funder2])
+      const creator = sampleAccountExcluding([author])
 
       const initialAuthorBalance = addressBalance(author)
 
-      return newCampaign(issueId, accounts[1]).then(function () {
+      return newCampaign(issueId, creator).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
@@ -932,12 +985,8 @@ contract('Issuehunter', function (accounts) {
         return Promise.all([initialAuthorBalance, addressBalance(author), DEFAULT_TIP_PER_MILLE])
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
         const withdrawableAmount = Math.floor((txValue1 + txValue2) * (1000 - tipPerMille.toNumber()) / 1000)
-        // TODO: find a better way to check for a user's account balance delta
-        // This is a workaround and it won't work under all conditions. It
-        // partially works because transactions are in wei, but gas are some
-        // orders of magnitude more expensive
         assert.equal(
-          currentAmount.mod(10000) - initialAmount.mod(10000),
+          hackDelta(currentAmount, initialAmount, withdrawableAmount),
           withdrawableAmount,
           'Verified patch\'s author balance has increased by the value of the ' +
           'reward, removing the tips amount'
@@ -946,14 +995,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign has been already rewarded', function () {
-      const issueId = 'new-campaign-16'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to withdraw reward twice', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -982,14 +1031,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a patch hasn\'t been verified yet', function () {
-      const issueId = 'new-campaign-17'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to withdraw reward', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1008,14 +1057,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('msg.sender is not the verified patch\'s author', function () {
-      const issueId = 'new-campaign-18'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to withdraw reward', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1025,7 +1074,7 @@ contract('Issuehunter', function (accounts) {
           // One second past the pre-reward period
           return increaseTime(60 * 60 * 24 + 1)
         }).then(function () {
-          return withdrawReward(issueId, accounts[2])
+          return withdrawReward(issueId, sampleAccountExcluding([author]))
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -1039,14 +1088,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right before the reward period end', function () {
-      const issueId = 'new-campaign-19'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('successfully withdraws the whole campaign\'s amount as a reward', function () {
-        return newCampaign(issueId, accounts[1]).then(function () {
+        return newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1076,14 +1125,14 @@ contract('Issuehunter', function (accounts) {
     // TODO: I think this is not fair. The verified patch's author should always
     // be able to withdraw their reward.
     context('past the reward period', function () {
-      const issueId = 'new-campaign-20'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1107,7 +1156,7 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
-      const funder = accounts[1]
+      const funder = sampleAccount()
 
       it('should fail to rollback funds', function () {
         const finalState = issuehunter.then(function (instance) {
@@ -1121,17 +1170,17 @@ contract('Issuehunter', function (accounts) {
 
   describe('withdrawSpareFunds', function () {
     it('should withdraw spare funds in the campaign', function () {
-      const issueId = 'new-campaign-21'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder1 = accounts[1]
-      const funder2 = accounts[2]
+      const funder1 = sampleAccount()
+      const funder2 = sampleAccountExcluding([funder1])
       const txValue1 = 10
       const txValue2 = 12
-      const author = accounts[3]
+      const author = sampleAccountExcluding([funder1, funder2])
 
       const funder1InitialBalance = addressBalance(funder1)
 
-      return newCampaign(issueId, accounts[1]).then(function () {
+      return newCampaign(issueId, sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
@@ -1163,12 +1212,8 @@ contract('Issuehunter', function (accounts) {
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
         const withdrawableAmount = Math.floor(txValue1 * (1000 - tipPerMille.toNumber()) / 1000)
         const expectedBalanceDelta = withdrawableAmount - txValue1
-        // TODO: find a better way to check for a user's account balance delta
-        // This is a workaround and it won't work under all conditions. It
-        // partially works because transactions are in wei, but gas are some
-        // orders of magnitude more expensive
         assert.equal(
-          currentAmount.mod(10000) - initialAmount.mod(10000),
+          hackDelta(currentAmount, initialAmount, expectedBalanceDelta),
           expectedBalanceDelta,
           'Funder 1\'s balance has been reduced by the difference between her ' +
           'transaction value and the reciprocal of the tips amount, that is ' +
@@ -1178,14 +1223,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('a campaign has been already rewarded', function () {
-      const issueId = 'new-campaign-22'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to withdraw spare funds', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1217,12 +1262,12 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right after a funding transaction', function () {
-      const issueId = 'new-campaign-23'
-      const funder = accounts[1]
+      const issueId = nextCampaignId()
+      const funder = sampleAccount()
       const txValue = 10
 
       it('should fail to withdraw spare funds', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return withdrawSpareFunds(issueId, funder)
@@ -1239,14 +1284,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('msg.sender is not a funder', function () {
-      const issueId = 'new-campaign-24'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to withdraw reward', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1256,7 +1301,7 @@ contract('Issuehunter', function (accounts) {
           // One second past the reward period
           return increaseTime(60 * 60 * 24 * 8 + 1)
         }).then(function () {
-          return withdrawSpareFunds(issueId, accounts[2])
+          return withdrawSpareFunds(issueId, sampleAccountExcluding([funder]))
         })
 
         return assertContractException(finalState, 'An exception has been thrown').then(function () {
@@ -1270,14 +1315,14 @@ contract('Issuehunter', function (accounts) {
     })
 
     context('right before the reward period expiration', function () {
-      const issueId = 'new-campaign-25'
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 10
-      const author = accounts[1]
+      const author = sampleAccount()
 
       it('should fail to withdraw spare funds', function () {
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1301,7 +1346,7 @@ contract('Issuehunter', function (accounts) {
 
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
-      const funder = accounts[1]
+      const funder = sampleAccount()
 
       it('should fail to rollback funds', function () {
         const finalState = issuehunter.then(function (instance) {
@@ -1315,8 +1360,10 @@ contract('Issuehunter', function (accounts) {
 
   describe('is Mortal', function () {
     it('does not allow to call kill', function () {
-      return Issuehunter.new().then(function (instance) {
-        return instance.kill({from: accounts[1]})
+      const owner = sampleAccount()
+
+      return Issuehunter.new({from: owner}).then(function (instance) {
+        return instance.kill({from: sampleAccountExcluding([owner])})
       }).then(function () {
         assert(false, 'it is supposed to fail')
       }).catch(function () {
@@ -1325,8 +1372,10 @@ contract('Issuehunter', function (accounts) {
     })
 
     it('allows to call kill', function () {
-      return Issuehunter.new().then(function (instance) {
-        return instance.kill({from: accounts[0]})
+      const owner = sampleAccount()
+
+      return Issuehunter.new({from: owner}).then(function (instance) {
+        return instance.kill({from: owner})
       }).then(function () {
         assert(true, 'contract killed')
       }).catch(function () {
@@ -1336,13 +1385,12 @@ contract('Issuehunter', function (accounts) {
   })
 
   describe('withdrawTips', function () {
-    it('should withdraw spare funds in the campaign', function () {
-      const issueId = newCampaignId()
+    it('should withdraw contract\'s tips', function () {
+      const issueId = nextCampaignId()
       const ref = 'sha'
-      const funder = accounts[1]
+      const funder = sampleAccount()
       const txValue = 100
-      const author = accounts[2]
-      const owner = accounts[0]
+      const author = sampleAccount()
 
       const expectedTipsAmount = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
         return txValue - (txValue * (1000 - tipPerMille.toNumber()) / 1000)
@@ -1354,7 +1402,7 @@ contract('Issuehunter', function (accounts) {
 
       const ownerInitialBalance = addressBalance(owner)
 
-      return newCampaign(issueId, accounts[1]).then(function () {
+      return newCampaign(issueId, sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue, funder)
       }).then(function () {
         return submitPatch(issueId, ref, author)
@@ -1368,13 +1416,10 @@ contract('Issuehunter', function (accounts) {
         assert.equal(tipsAmount.toNumber(), 0, 'Contract\'s tips amount has been reset to 0')
         return Promise.all([ownerInitialBalance, addressBalance(owner), initialContractTipsAmount, expectedTipsAmount])
       }).then(function ([initialAmount, currentAmount, initialTipsAmount, tipsAmount]) {
-        // TODO: find a better way to check for a user's account balance delta
-        // This is a workaround and it won't work under all conditions. It
-        // partially works because transactions are in wei, but gas are some
-        // orders of magnitude more expensive
+        const expectedDelta = initialTipsAmount.toNumber() + tipsAmount
         assert.equal(
-          currentAmount.mod(10000) - initialAmount.mod(10000),
-          initialTipsAmount.toNumber() + tipsAmount,
+          hackDelta(currentAmount, initialAmount, expectedDelta),
+          expectedDelta,
           'Owner balance has been increased by the contract\'s tips amount, ' +
           'that is the initial contract\'s tips amount plus the last campaign\'s ' +
           'tips amount'
@@ -1384,20 +1429,20 @@ contract('Issuehunter', function (accounts) {
 
     context('msg.sender is not the owner of the contract', function () {
       it('should fail to withdraw tips', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
         const ref = 'sha'
-        const funder = accounts[1]
+        const funder = sampleAccount()
         const txValue = 10
-        const author = accounts[2]
+        const author = sampleAccount()
 
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
         }).then(function (campaign) {
-          return withdrawTips(accounts[2])
+          return withdrawTips(sampleAccountExcluding([owner]))
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -1406,14 +1451,13 @@ contract('Issuehunter', function (accounts) {
 
     context('tips amount is zero', function () {
       it('should fail to withdraw tips', function () {
-        const issueId = newCampaignId()
+        const issueId = nextCampaignId()
         const ref = 'sha'
-        const funder = accounts[1]
+        const funder = sampleAccount()
         const txValue = 10
-        const author = accounts[2]
-        const owner = accounts[0]
+        const author = sampleAccount()
 
-        const finalState = newCampaign(issueId, accounts[1]).then(function () {
+        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
