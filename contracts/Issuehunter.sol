@@ -86,13 +86,13 @@ contract Issuehunter is Mortal {
     // A mapping between issues (their ids) and campaigns.
     mapping(bytes32 => Campaign) public campaigns;
 
-    event CampaignCreated(bytes32 indexed issueId, address creator, uint timestamp);
-    event CampaignFunded(bytes32 indexed issueId, address funder, uint timestamp, uint amount);
+    event CampaignCreated(bytes32 indexed issueId, address createdBy, uint timestamp);
+    event CampaignFunded(bytes32 indexed issueId, address fundedBy, uint timestamp, uint amount);
     event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
-    event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
+    event RollbackFunds(bytes32 indexed issueId, address fundedBy, uint amount);
     event WithdrawReward(bytes32 indexed issueId, address resolvedBy, uint amount);
-    event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
+    event WithdrawSpareFunds(bytes32 indexed issueId, address fundedBy, uint amount);
     event WithdrawTips(address owner, uint amount);
 
     /// Create a new contract instance and set message sender as the default
