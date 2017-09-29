@@ -86,13 +86,13 @@ contract Issuehunter is Mortal {
     // A mapping between issues (their ids) and campaigns.
     mapping(bytes32 => Campaign) public campaigns;
 
-    event CampaignCreated(bytes32 indexed issueId, address creator, uint timestamp);
-    event CampaignFunded(bytes32 indexed issueId, address funder, uint timestamp, uint amount);
+    event CampaignCreated(bytes32 indexed issueId, address createdBy, uint timestamp);
+    event CampaignFunded(bytes32 indexed issueId, address fundedBy, uint timestamp, uint amount);
     event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
-    event RollbackFunds(bytes32 indexed issueId, address funder, uint amount);
+    event RollbackFunds(bytes32 indexed issueId, address fundedBy, uint amount);
     event WithdrawReward(bytes32 indexed issueId, address resolvedBy, uint amount);
-    event WithdrawSpareFunds(bytes32 indexed issueId, address funder, uint amount);
+    event WithdrawSpareFunds(bytes32 indexed issueId, address fundedBy, uint amount);
     event WithdrawTips(address owner, uint amount);
 
     /// Create a new contract instance and set message sender as the default
@@ -185,7 +185,7 @@ contract Issuehunter is Mortal {
     // Submit a new patch.
     //
     // This method is defined as payable because the sender must pay a patch
-    // verification fee that will be used by the patch verifier, after the patch
+    // submission fee that will be used by the patch verifier, after the patch
     // has been verified, to inform the contract of the successful verification.
     function submitPatch(bytes32 issueId, bytes32 ref) public payable exists(issueId) open(issueId) {
         // Fail if sender already submitted the same patch
@@ -196,10 +196,10 @@ contract Issuehunter is Mortal {
         // wouldn't give any reward, but maybe it's better to check anyway
 
         // Calculate fee amount based on the current transaction's gas price
-        uint feeAmount = _patchVerificationFee(tx.gasprice);
-        // Fail if the transaction value is less than the verification fee
+        uint feeAmount = _patchSubmissionFee(tx.gasprice);
+        // Fail if the transaction value is less than the submission fee
         require(msg.value >= feeAmount);
-        // Pay the patch verification fee
+        // Pay the patch submission fee
         campaigns[issueId].patchVerifier.transfer(msg.value);
 
         campaigns[issueId].patches[msg.sender] = ref;
@@ -367,11 +367,11 @@ contract Issuehunter is Mortal {
         return amount;
     }
 
-    // The patch verification fee amount is set to twice the amount of Ether
+    // The patch submission fee amount is set to twice the amount of Ether
     // needed to send a transaction to execute the method `verifyPatch`
     // according the gas price in input. In theory this should be more than
     // enough for the verifier to run the transaction and to spare some gas.
-    function _patchVerificationFee(uint gasprice) internal returns (uint) {
+    function _patchSubmissionFee(uint gasprice) internal returns (uint) {
         return gasprice * VERIFY_PATCH_ESTIMATED_GAS * 2;
     }
 
