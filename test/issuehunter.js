@@ -108,6 +108,20 @@ const sampleExcluding = function (array) {
   }
 }
 
+// TODO: find a better way to check for a user's account balance delta This is a
+// workaround and it won't work under all conditions. It partially works because
+// transactions are in wei, but gas are some orders of magnitude more expensive.
+// There's also an ugly hack to account for the fact that sometimes it could
+// happen that `initial + expected delta > modulo`, in those case the result
+// must be adjusted by `modulo`.
+const hackDelta = function (current, initial, expectedDelta) {
+  if (initial.mod(10000).add(expectedDelta) > 10000) {
+    return current.mod(10000) - initial.mod(10000) + 10000
+  } else {
+    return current.mod(10000) - initial.mod(10000)
+  }
+}
+
 contract('Issuehunter', function (accounts) {
   const patchVerifier = accounts[0]
   const owner = accounts[0]
@@ -971,12 +985,8 @@ contract('Issuehunter', function (accounts) {
         return Promise.all([initialAuthorBalance, addressBalance(author), DEFAULT_TIP_PER_MILLE])
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
         const withdrawableAmount = Math.floor((txValue1 + txValue2) * (1000 - tipPerMille.toNumber()) / 1000)
-        // TODO: find a better way to check for a user's account balance delta
-        // This is a workaround and it won't work under all conditions. It
-        // partially works because transactions are in wei, but gas are some
-        // orders of magnitude more expensive
         assert.equal(
-          currentAmount.mod(10000) - initialAmount.mod(10000),
+          hackDelta(currentAmount, initialAmount, withdrawableAmount),
           withdrawableAmount,
           'Verified patch\'s author balance has increased by the value of the ' +
           'reward, removing the tips amount'
@@ -1202,12 +1212,8 @@ contract('Issuehunter', function (accounts) {
       }).then(function ([initialAmount, currentAmount, tipPerMille]) {
         const withdrawableAmount = Math.floor(txValue1 * (1000 - tipPerMille.toNumber()) / 1000)
         const expectedBalanceDelta = withdrawableAmount - txValue1
-        // TODO: find a better way to check for a user's account balance delta
-        // This is a workaround and it won't work under all conditions. It
-        // partially works because transactions are in wei, but gas are some
-        // orders of magnitude more expensive
         assert.equal(
-          currentAmount.mod(10000) - initialAmount.mod(10000),
+          hackDelta(currentAmount, initialAmount, expectedBalanceDelta),
           expectedBalanceDelta,
           'Funder 1\'s balance has been reduced by the difference between her ' +
           'transaction value and the reciprocal of the tips amount, that is ' +
@@ -1411,24 +1417,8 @@ contract('Issuehunter', function (accounts) {
         return Promise.all([ownerInitialBalance, addressBalance(owner), initialContractTipsAmount, expectedTipsAmount])
       }).then(function ([initialAmount, currentAmount, initialTipsAmount, tipsAmount]) {
         const expectedDelta = initialTipsAmount.toNumber() + tipsAmount
-
-        // TODO: find a better way to check for a user's account balance delta
-        // This is a workaround and it won't work under all conditions. It
-        // partially works because transactions are in wei, but gas are some
-        // orders of magnitude more expensive. There's also an ugly hack to
-        // account for the fact that sometimes it could happen that `initial +
-        // expected delta > modulo`, in those case the result must be adjusted
-        // by `modulo`.
-        const delta = function (current, initial, expectedDelta) {
-          if (initial.mod(10000) + expectedDelta > 10000) {
-            return current.mod(10000) - initial.mod(10000) + 10000
-          } else {
-            return current.mod(10000) - initial.mod(10000)
-          }
-        }
-
         assert.equal(
-          delta(currentAmount, initialAmount, expectedDelta),
+          hackDelta(currentAmount, initialAmount, expectedDelta),
           expectedDelta,
           'Owner balance has been increased by the contract\'s tips amount, ' +
           'that is the initial contract\'s tips amount plus the last campaign\'s ' +
