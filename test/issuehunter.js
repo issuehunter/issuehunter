@@ -493,6 +493,39 @@ contract('Issuehunter', function (accounts) {
       })
     })
 
+    context('fund overflow', function () {
+      const issueId = nextCampaignId()
+      const funder = sampleAccount()
+      const txValue1 = (2 ** 32) - 1
+      const txValue2 = 1
+
+      const initialTotal = issuehunter.then(function (instance) {
+        return instance.campaigns.call(issueId)
+      }).then(function (campaign) {
+        return campaign[1].toNumber()
+      })
+
+      return newCampaign(issueId, sampleAccount()).then(function () {
+        return initialTotal
+      }).then(function () {
+        // Test a `fund` transaction from `funder`
+        return Promise.all([initialTotal, fundCampaign(issueId, txValue1, funder)])
+      }).then(function ([initialTotalValue, campaign]) {
+        assert.equal(campaign[1].toNumber(), initialTotalValue + txValue1, 'Campaign\'s total amount should be updated')
+        return issuehunter
+      }).then(function (instance) {
+        return instance.campaignFunds.call(issueId, funder)
+      }).then(function (amount) {
+        assert.equal(amount.toNumber(), txValue1, 'Campaign\'s funder amount should be updated')
+        // Test a second `fund` transaction from the same account
+        return Promise.all([initialTotal, fundCampaign(issueId, txValue2, funder)])
+      }).then(function ([initialTotalValue, campaign]) {
+        assert(false, 'should fail')
+      }).catch(function () {
+        assert(true, 'overflow detected')
+      })
+    })
+
     context('a campaign that doesn\'t exist', function () {
       const issueId = 'invalid'
 
