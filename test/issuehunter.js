@@ -153,9 +153,9 @@ contract('Issuehunter', function (accounts) {
     return instance.MAX_TIP_PER_MILLE.call()
   })
 
-  const newCampaign = function (issueId, account) {
+  const newCampaign = function (issueId, repoURL, account) {
     return issuehunter.then(function (instance) {
-      return instance.createCampaign(issueId, { from: account })
+      return instance.createCampaign(issueId, repoURL, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'CampaignCreated'), 'A new `CampaignCreated` event has been triggered')
       return issuehunter
@@ -164,9 +164,9 @@ contract('Issuehunter', function (accounts) {
     })
   }
 
-  const newCampaignExtended = function (issueId, patchVerifier, tipPerMille, account) {
+  const newCampaignExtended = function (issueId, repoURL, patchVerifier, tipPerMille, account) {
     return issuehunter.then(function (instance) {
-      return instance.createCampaignExtended(issueId, patchVerifier, tipPerMille, { from: account })
+      return instance.createCampaignExtended(issueId, repoURL, patchVerifier, tipPerMille, { from: account })
     }).then(function (result) {
       assert(findEvent(result, 'CampaignCreated'), 'A new `CampaignCreated` event has been triggered')
       return issuehunter
@@ -294,7 +294,7 @@ contract('Issuehunter', function (accounts) {
       const creator = sampleAccount()
 
       return Promise.all([
-        newCampaign(issueId, creator),
+        newCampaign(issueId, 'https://github.com/issuehunter/bar', creator),
         defaultPatchVerifier,
         DEFAULT_TIP_PER_MILLE
       ]).then(function ([campaign, defPatchVerifier, defTipPerMille]) {
@@ -307,6 +307,7 @@ contract('Issuehunter', function (accounts) {
         assert.equal(campaign[6].valueOf(), defPatchVerifier, 'The default patch verifier should be the new campaign\'s patch verifier')
         assert.equal(campaign[7].toNumber(), defTipPerMille.toNumber(), 'The default tip per mille should be the new campaign\'s tip value')
         assert.equal(campaign[8].toNumber(), 0, 'A new campaign with a zero tips amount should be present')
+        assert.equal(campaign[9].valueOf(), 'https://github.com/issuehunter/bar', 'The new campaign has the given repo URL')
       })
     })
 
@@ -314,10 +315,10 @@ contract('Issuehunter', function (accounts) {
       const issueId = nextCampaignId()
 
       it('should fail to create a new campaign', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return issuehunter
         }).then(function (instance) {
-          return instance.createCampaign(issueId, { from: sampleAccount() })
+          return instance.createCampaign(issueId, 'https://github.com/issuehunter/bar', { from: sampleAccount() })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -332,7 +333,7 @@ contract('Issuehunter', function (accounts) {
       const customPatchVerifier = sampleAccount()
 
       return DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
-        return newCampaignExtended(issueId, customPatchVerifier, tipPerMille, creator)
+        return newCampaignExtended(issueId, 'https://github.com/issuehunter/bar', customPatchVerifier, tipPerMille, creator)
       }).then(function (campaign) {
         assert.ok(!campaign[0], 'A new campaign that has not been rewarded should be present')
         assert.equal(campaign[1].toNumber(), 0, 'A new campaign with a zero total amount should be present')
@@ -341,6 +342,7 @@ contract('Issuehunter', function (accounts) {
         assert.equal(campaign[4].toNumber(), 0, 'A new campaign with a null `rewardPeriodExpiresAt` value should be present')
         assert.equal(campaign[5].valueOf(), 0, 'A new campaign with a null `resolvedBy` address should be present')
         assert.equal(campaign[6].valueOf(), customPatchVerifier, 'The custom patch verifier should be the new campaign\'s patch verifier')
+        assert.equal(campaign[9].valueOf(), 'https://github.com/issuehunter/bar', 'The new campaign has the given repo URL')
       })
     })
 
@@ -355,7 +357,7 @@ contract('Issuehunter', function (accounts) {
 
         return randomTipPerMille.then(function (tipPerMille) {
           return Promise.all([
-            newCampaignExtended(issueId, patchVerifier, tipPerMille, sampleAccount()),
+            newCampaignExtended(issueId, 'https://github.com/issuehunter/bar', patchVerifier, tipPerMille, sampleAccount()),
             randomTipPerMille
           ])
         }).then(function ([campaign, tipPerMille]) {
@@ -368,7 +370,7 @@ contract('Issuehunter', function (accounts) {
 
         return MIN_TIP_PER_MILLE.then(function (minTip) {
           return Promise.all([
-            newCampaignExtended(issueId, patchVerifier, minTip, sampleAccount()),
+            newCampaignExtended(issueId, 'https://github.com/issuehunter/bar', patchVerifier, minTip, sampleAccount()),
             MIN_TIP_PER_MILLE
           ])
         }).then(function ([campaign, minTip]) {
@@ -381,7 +383,7 @@ contract('Issuehunter', function (accounts) {
 
         return MAX_TIP_PER_MILLE.then(function (maxTip) {
           return Promise.all([
-            newCampaignExtended(issueId, patchVerifier, maxTip, sampleAccount()),
+            newCampaignExtended(issueId, 'https://github.com/issuehunter/bar', patchVerifier, maxTip, sampleAccount()),
             MAX_TIP_PER_MILLE
           ])
         }).then(function ([campaign, maxTip]) {
@@ -394,7 +396,7 @@ contract('Issuehunter', function (accounts) {
 
         it('should fail to create a new campaign', function () {
           const finalState = MIN_TIP_PER_MILLE.then(function (minTip) {
-            return newCampaignExtended(issueId, patchVerifier, minTip.toNumber() - 1, sampleAccount())
+            return newCampaignExtended(issueId, 'https://github.com/issuehunter/bar', patchVerifier, minTip.toNumber() - 1, sampleAccount())
           })
 
           return assertContractException(finalState, 'An exception has been thrown')
@@ -406,7 +408,7 @@ contract('Issuehunter', function (accounts) {
 
         it('should fail to create a new campaign', function () {
           const finalState = MAX_TIP_PER_MILLE.then(function (maxTip) {
-            return newCampaignExtended(issueId, patchVerifier, maxTip.toNumber() + 1, sampleAccount())
+            return newCampaignExtended(issueId, 'https://github.com/issuehunter/bar', patchVerifier, maxTip.toNumber() + 1, sampleAccount())
           })
 
           return assertContractException(finalState, 'An exception has been thrown')
@@ -419,11 +421,11 @@ contract('Issuehunter', function (accounts) {
 
       it('should fail to create a new campaign', function () {
         const finalState = DEFAULT_TIP_PER_MILLE.then(function (tipPerMille) {
-          return newCampaignExtended(issueId, patchVerifier, tipPerMille, sampleAccount())
+          return newCampaignExtended(issueId, 'https://github.com/issuehunter/bar', patchVerifier, tipPerMille, sampleAccount())
         }).then(function () {
           return Promise.all([issuehunter, DEFAULT_TIP_PER_MILLE])
         }).then(function ([instance, tipPerMille]) {
-          return instance.createCampaignExtended(issueId, patchVerifier, tipPerMille, { from: sampleAccount() })
+          return instance.createCampaignExtended(issueId, 'https://github.com/issuehunter/bar', patchVerifier, tipPerMille, { from: sampleAccount() })
         })
 
         return assertContractException(finalState, 'An exception has been thrown')
@@ -444,7 +446,7 @@ contract('Issuehunter', function (accounts) {
         return campaign[1].toNumber()
       })
 
-      return newCampaign(issueId, sampleAccount()).then(function () {
+      return newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
         return initialTotal
       }).then(function () {
         // Test a `fund` transaction from `funder`
@@ -476,7 +478,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to add more funds to the campaign', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return submitPatch(issueId, ref, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
@@ -515,7 +517,7 @@ contract('Issuehunter', function (accounts) {
 
       const verifierInitialBalance = addressBalance(patchVerifier)
 
-      return newCampaign(issueId, creator).then(function () {
+      return newCampaign(issueId, 'https://github.com/issuehunter/bar', creator).then(function () {
         // Test a `submitPatch` transaction from author1
         return submitPatch(issueId, ref1, author1)
       }).then(function (ref) {
@@ -556,7 +558,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to submit the same patch twice', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           // Test a `submitPatch` transaction from author
           return submitPatch(issueId, ref, author)
         }).then(function (storedCommitSHA) {
@@ -575,7 +577,7 @@ contract('Issuehunter', function (accounts) {
       const ref = 'sha'
 
       it('should fail to submit the same patch twice', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return minSubmissionFee
         }).then(function (minFee) {
           return submitPatchWithFee(issueId, ref, minFee.sub(1), sampleAccount())
@@ -592,7 +594,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to submit a new patch', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return submitPatch(issueId, ref1, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref1, patchVerifier)
@@ -627,7 +629,7 @@ contract('Issuehunter', function (accounts) {
       const ref = 'sha'
       const author = sampleAccount()
 
-      const patchVerified = newCampaign(issueId, sampleAccount()).then(function () {
+      const patchVerified = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
         return submitPatch(issueId, ref, author)
       }).then(function () {
         return verifyPatch(issueId, author, ref, patchVerifier)
@@ -657,7 +659,7 @@ contract('Issuehunter', function (accounts) {
         return instance.tipsAmount.call()
       })
 
-      const patchVerified = newCampaign(issueId, sampleAccount()).then(function () {
+      const patchVerified = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue, funder)
       }).then(function () {
         return submitPatch(issueId, ref, author)
@@ -695,7 +697,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to verify again any patch', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return submitPatch(issueId, ref, author)
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
@@ -715,7 +717,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to verify a patch', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return submitPatch(issueId, ref, sampleAccountExcluding([author]))
         }).then(function () {
           return verifyPatch(issueId, author, ref, patchVerifier)
@@ -731,7 +733,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to verify a patch', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return verifyPatch(issueId, author, ref, sampleAccountExcluding([patchVerifier]))
         })
 
@@ -750,7 +752,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to verify the outdated patch', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return submitPatch(issueId, ref1, author)
         }).then(function () {
           return submitPatch(issueId, ref2, author)
@@ -793,7 +795,7 @@ contract('Issuehunter', function (accounts) {
       const txValue2 = 12
       const author = sampleAccount()
 
-      return newCampaign(issueId, sampleAccount()).then(function () {
+      return newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
@@ -821,7 +823,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -847,7 +849,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('remove funding from the selected campaign', function () {
-        return newCampaign(issueId, sampleAccount()).then(function () {
+        return newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -876,7 +878,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -906,7 +908,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -954,7 +956,7 @@ contract('Issuehunter', function (accounts) {
 
       const initialAuthorBalance = addressBalance(author)
 
-      return newCampaign(issueId, creator).then(function () {
+      return newCampaign(issueId, 'https://github.com/issuehunter/bar', creator).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
@@ -1002,7 +1004,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to withdraw reward twice', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1038,7 +1040,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to withdraw reward', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1064,7 +1066,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to withdraw reward', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1095,7 +1097,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('successfully withdraws the whole campaign\'s amount as a reward', function () {
-        return newCampaign(issueId, sampleAccount()).then(function () {
+        return newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1132,7 +1134,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to rollback funds', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1180,7 +1182,7 @@ contract('Issuehunter', function (accounts) {
 
       const funder1InitialBalance = addressBalance(funder1)
 
-      return newCampaign(issueId, sampleAccount()).then(function () {
+      return newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue1, funder1)
       }).then(function () {
         return fundCampaign(issueId, txValue2, funder2)
@@ -1230,7 +1232,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to withdraw spare funds', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1267,7 +1269,7 @@ contract('Issuehunter', function (accounts) {
       const txValue = 10
 
       it('should fail to withdraw spare funds', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return withdrawSpareFunds(issueId, funder)
@@ -1291,7 +1293,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to withdraw reward', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1322,7 +1324,7 @@ contract('Issuehunter', function (accounts) {
       const author = sampleAccount()
 
       it('should fail to withdraw spare funds', function () {
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1402,7 +1404,7 @@ contract('Issuehunter', function (accounts) {
 
       const ownerInitialBalance = addressBalance(owner)
 
-      return newCampaign(issueId, sampleAccount()).then(function () {
+      return newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
         return fundCampaign(issueId, txValue, funder)
       }).then(function () {
         return submitPatch(issueId, ref, author)
@@ -1435,7 +1437,7 @@ contract('Issuehunter', function (accounts) {
         const txValue = 10
         const author = sampleAccount()
 
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)
@@ -1457,7 +1459,7 @@ contract('Issuehunter', function (accounts) {
         const txValue = 10
         const author = sampleAccount()
 
-        const finalState = newCampaign(issueId, sampleAccount()).then(function () {
+        const finalState = newCampaign(issueId, 'https://github.com/issuehunter/bar', sampleAccount()).then(function () {
           return fundCampaign(issueId, txValue, funder)
         }).then(function () {
           return submitPatch(issueId, ref, author)

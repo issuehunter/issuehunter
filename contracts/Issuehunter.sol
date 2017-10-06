@@ -81,12 +81,16 @@ contract Issuehunter is Mortal {
 
         // Campaign's tips amount.
         uint tipsAmount;
+
+        // Repository URL. This URL provides a means of locating the
+        // repository for the patchVerifier to check for valid patches
+        string repoURL;
     }
 
     // A mapping between issues (their ids) and campaigns.
     mapping(bytes32 => Campaign) public campaigns;
 
-    event CampaignCreated(bytes32 indexed issueId, address createdBy, uint timestamp);
+    event CampaignCreated(bytes32 indexed issueId, address createdBy, string repoURL, uint timestamp);
     event CampaignFunded(bytes32 indexed issueId, address fundedBy, uint timestamp, uint amount);
     event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
@@ -132,12 +136,12 @@ contract Issuehunter is Mortal {
     /// Creates a new campaign with `defaultPatchVerifier` as the allowed
     //  address to verify patches, and the `DEFAULT_TIP_PER_MILLE` as the per
     //  mille funds tip value.
-    function createCampaign(bytes32 issueId) public {
-        createCampaignExtended(issueId, defaultPatchVerifier, DEFAULT_TIP_PER_MILLE);
+    function createCampaign(bytes32 issueId, string repoURL) public {
+        createCampaignExtended(issueId, repoURL, defaultPatchVerifier, DEFAULT_TIP_PER_MILLE);
     }
 
     /// Creates a new campaign.
-    function createCampaignExtended(bytes32 issueId, address _patchVerifier, uint _tipPerMille) public {
+    function createCampaignExtended(bytes32 issueId, string _repoURL, address _patchVerifier, uint _tipPerMille) public {
         // If a campaign for the selected issue exists already throws an
         // exception.
         //
@@ -158,10 +162,11 @@ contract Issuehunter is Mortal {
             resolvedBy: 0,
             patchVerifier: _patchVerifier,
             tipPerMille: _tipPerMille,
-            tipsAmount: 0
+            tipsAmount: 0,
+            repoURL: _repoURL
         });
 
-        CampaignCreated(issueId, msg.sender, now);
+        CampaignCreated(issueId, msg.sender, _repoURL, now);
     }
 
     /// Add funds to the selected campaign.
