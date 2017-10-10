@@ -175,6 +175,7 @@ contract Issuehunter is Mortal {
     // campaign's rank in the list. Higher tips will make campaigns more visible
     // in the directory, by making them appear with a higher rank in the list.
     function fund(bytes32 issueId) public payable exists(issueId) open(issueId) {
+        // check for overflow on campaigns[issueId].funds[msg.sender] and on campaigns[issueId].total
         require((campaigns[issueId].funds[msg.sender] + msg.value) >= campaigns[issueId].funds[msg.sender]);
         require((campaigns[issueId].total + msg.value) >= campaigns[issueId].total);
         // Add funds to the list, and update campaign's funds total amount
