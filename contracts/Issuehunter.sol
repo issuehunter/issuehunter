@@ -1,6 +1,7 @@
 pragma solidity ^0.4.11;
 
 import "./Mortal.sol";
+import "zeppelin-solidity/contracts/math/SafeMath.sol";
 
 
 // TODO: contract description
@@ -41,7 +42,7 @@ contract Issuehunter is Mortal {
 
         // The total amount of funds associated to the issue.
         // TODO: rename to "rewardAmount"?
-        uint total;
+        uint256 total;
 
         // The address that created the campaign. Mainly used to check if a
         // campaign for a selected issue is already present in the `campaigns`
@@ -53,7 +54,7 @@ contract Issuehunter is Mortal {
         // By default funds amounts are zeroes.
         //
         // TODO: rename to "amounts"?
-        mapping(address => uint) funds;
+        mapping(address => uint256) funds;
 
         // A mapping between author addresses and patches ids, that are
         // references to commit SHAs.
@@ -91,13 +92,13 @@ contract Issuehunter is Mortal {
     mapping(bytes32 => Campaign) public campaigns;
 
     event CampaignCreated(bytes32 indexed issueId, address createdBy, string repoURL, uint timestamp);
-    event CampaignFunded(bytes32 indexed issueId, address fundedBy, uint timestamp, uint amount);
+    event CampaignFunded(bytes32 indexed issueId, address fundedBy, uint timestamp, uint256 amount);
     event PatchSubmitted(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
     event PatchVerified(bytes32 indexed issueId, address resolvedBy, bytes32 ref);
-    event RollbackFunds(bytes32 indexed issueId, address fundedBy, uint amount);
-    event WithdrawReward(bytes32 indexed issueId, address resolvedBy, uint amount);
-    event WithdrawSpareFunds(bytes32 indexed issueId, address fundedBy, uint amount);
-    event WithdrawTips(address owner, uint amount);
+    event RollbackFunds(bytes32 indexed issueId, address fundedBy, uint256 amount);
+    event WithdrawReward(bytes32 indexed issueId, address resolvedBy, uint256 amount);
+    event WithdrawSpareFunds(bytes32 indexed issueId, address fundedBy, uint256 amount);
+    event WithdrawTips(address owner, uint256 amount);
 
     /// Create a new contract instance and set message sender as the default
     //  patch verifier.
@@ -175,9 +176,8 @@ contract Issuehunter is Mortal {
     // campaign's rank in the list. Higher tips will make campaigns more visible
     // in the directory, by making them appear with a higher rank in the list.
     function fund(bytes32 issueId) public payable exists(issueId) open(issueId) {
-        // Add funds to the list, and update campaign's funds total amount
-        campaigns[issueId].funds[msg.sender] += msg.value;
-        campaigns[issueId].total += msg.value;
+        campaigns[issueId].funds[msg.sender] = SafeMath.add(campaigns[issueId].funds[msg.sender], msg.value);
+        campaigns[issueId].total = SafeMath.add(campaigns[issueId].total, msg.value);
 
         CampaignFunded(
             issueId,
@@ -360,11 +360,11 @@ contract Issuehunter is Mortal {
 
     // TODO: add doc...
     function _rollbackFunds(Campaign storage campaign, address funder) internal returns (uint amount) {
-        uint funds = campaign.funds[funder];
+        uint256 funds = campaign.funds[funder];
         require(funds > 0);
 
         campaign.funds[funder] = 0;
-        campaign.total -= funds;
+        campaign.total = SafeMath.sub(campaign.total, funds);
         // Compute remaining withdrawable amount after tips
         amount = _reciprocalPerMille(funds, campaign.tipPerMille);
         funder.transfer(amount);
@@ -388,8 +388,8 @@ contract Issuehunter is Mortal {
     // calculation at a higher precision.
     //
     // TODO: review math
-    function _reciprocalPerMille(uint amount, uint tipPerMille) internal returns (uint) {
-        return amount * (1000 - tipPerMille) / 1000;
+    function _reciprocalPerMille(uint256 amount, uint tipPerMille) internal returns (uint) {
+        return amount * (uint256(1000 - tipPerMille)) / 1000;
     }
 
     ////////////////////////////////////////////////////////////////////////////
